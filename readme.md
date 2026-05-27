@@ -17,24 +17,23 @@ Este repositorio contiene la infraestructura backend y la aplicación móvil nat
 
 A continuación, se detalla el plan maestro de desarrollo estructurado en fases de ingeniería y entregables semanales detallados para el control administrativo de la estadía:
 
-| Fase / Etapa | Semana | Fecha Fin | Entregable Backend / API | Entregable App Móvil / Flutter | Estado Actual |
-| :--- | :---: | :---: | :--- | :--- | :---: |
-| **Fase 1: Arquitectura Base y Datos** | **S1** | 07 May 2026 | Inicialización de Node.js, dependencias listas y pool de conexión con MySQL Workbench. | Creación del proyecto limpio en Flutter, arquitectura de carpetas y layouts base. | ✅ Finalizado |
-| | **S2** | 14 May 2026 | API de autenticación JWT, hashing de contraseñas con bcrypt y control de roles (`ADMIN`/`OPERADOR`). | Diseño de la pantalla de Login e integración del almacenamiento del Token. | ⏳ En Proceso |
-| | **S3** | 21 May 2026 | Desarrollo del CRUD corporativo de Empresas y lógica para almacenamiento de logotipos comerciales. | Desarrollo del módulo visual de perfil y lectura de datos de la empresa. | ❌ Sin iniciar |
-| **Fase 2: Motor de Formularios** | **S4** | 28 May 2026 | Modelado relacional y API para control de estructuras de cuestionarios, bloques y secciones. | Maquetación de vistas contenedoras de encuestas y lógica de navegación. | ❌ Sin iniciar |
-| | **S5** | 04 Jun 2026 | Endpoints y Resolvers del constructor de preguntas y taxonomías (Texto, Selección, etc.). | Diseño de inputs dinámicos interactivos y adaptables según el tipo de dato. | ❌ Sin iniciar |
-| | **S6** | 11 Jun 2026 | Arquitectura lógica del motor de reglas condicionales en base de datos (Mostrar/Ocultar). | Implementación de widgets reactivos condicionales en tiempo real. | ❌ Sin iniciar |
-| | **S7** | 18 Jun 2026 | Optimizaciones de consultas y resolvers indexados para formularios dinámicos masivos. | Intérprete JSON completamente funcional; renderizado dinámico completo. | ❌ Sin iniciar |
-| **Fase 3: Captura de Evidencias** | **S8** | 25 Jun 2026 | Endpoints de consulta histórica de formularios, ordenamientos complejos y filtros. | Enlace de hardware nativo para la captura y serialización de fotografías en campo. | ❌ Sin iniciar |
-| | **S9** | 02 Jul 2026 | Pruebas de estrés y rendimiento del servidor de consultas; auditoría de seguridad JWT. | Implementación técnica de lienzo de firma táctil digital (Signature Pad Canvas). | ❌ Sin iniciar |
-| | **S10** | 09 Jul 2026 | Documentación técnica detallada de la API GraphQL (Esquemas de consultas, mutations y resolvers). | Extracción automatizada de coordenadas geográficas mediante hardware GPS. | ❌ Sin iniciar |
-| **Fase 4: Reportes y Cierre** | **S11** | 16 Jul 2026 | Microservicio asíncrono para el mapeo y compilación de respuestas en plantillas de archivos. | Pruebas de rendimiento del cliente móvil y sincronización en baja conectividad. | ❌ Sin iniciar |
-| | **S12** | 23 Jul 2026 | API de reportería documental completa para la descarga y exportación de archivos PDF corporativos. | Optimización de memoria caché en el dispositivo celular y fluidez de interfaz. | ❌ Sin iniciar |
-| | **S13** | 30 Jul 2026 | Pruebas de integración de extremo a extremo (E2E Backend ↔ App) y parches de incidencias. | Pruebas de compatibilidad multiplataforma (Múltiples pantallas y resoluciones). | ❌ Sin iniciar |
-| | **S14** | 06 Ago 2026 | Congelamiento definitivo de código, auditoría final del sistema y preparación de servidores. | Empaquetado final de binarios de distribución móvil (Compilación de APK/AAB). | ❌ Sin iniciar |
-| | **S15** | 13 Ago 2026 | Cierre administrativo de estadía profesional, firmas de liberación y entrega de plataforma. | Presentación y entrega final del ecosistema tecnológico completo ante asesores. | ❌ Sin iniciar |
-
+| Fase / Etapa | Sem | Fecha Reunión | Actividades Dev 1 (Backend / API) | Actividades Dev 2 (App Móvil / Integración) | Entregable de Avance Global | Estado Actual |
+| :--- | :---: | :---: | :--- | :--- | :--- | :---: |
+| **Fase 1: Arquitectura Base y Datos** | **S1** | 07 May 2026 | Configuración backend, modelo de datos inicial, endpoints base. | Inicialización proyecto Flutter, arquitectura de carpetas y layouts base. | Entornos listos y servidor corriendo. | **🟢 Finalizado** |
+| | **S2** | 14 May 2026 | API de autenticación JWT y roles (ADMIN/OPERADOR). | Desarrollo login en Flutter + persistencia de token en sesión local. | Login funcional + app móvil capaz de iniciar sesión segura. | **🟢 Finalizado** |
+| | **S3** | 21 May 2026 | Endpoints de gestión de empresas y subida de logos. | Maquetación de Dashboard y menú de navegación en Flutter. | Endpoints de empresas + home en móvil. | **🟢 Finalizado** |
+| | **S4** | 28 May 2026 | Endpoints para almacenar respuestas desde la app móvil. | Módulo de sincronización en Flutter: descarga y lista de formularios. | **Base de Datos & Arquitectura Base:** Backend guarda formularios; app los descarga y lista. | **🟢 Finalizado** |
+| **Fase 2: Motor Dinámico** | **S5** | 04 Jun 2026 | Endpoints para recibir archivos pesados (imágenes, firmas). | Componentes visuales en Flutter (texto, selectores, fecha). | Endpoints listos para cualquier tipo de pregunta. | ⏳ Sin Iniciar |
+| | **S6** | 11 Jun 2026 | API de geolocalización (GPS adjunto al envío). | Motor de renderizado dinámico en Flutter. | App dibuja formularios desde JSON del backend. | ⏳ Sin Iniciar |
+| | **S7** | 18 Jun 2026 | Servicio automático de generación de PDF (Puppeteer/PDFKit). | Evaluador de lógica condicional en tiempo real (mostrar/ocultar). | **API Core:** Formularios con lógica condicional en móvil. | ⏳ Sin Iniciar |
+| **Fase 3: Captura de Evidencias** | **S8** | 25 Jun 2026 | Endpoints de consulta histórica y filtros. | Integración de cámara en app móvil. | **App Flutter Funcional (Fase 1):** App captura fotos y las envía al backend. | ⏳ Sin Iniciar |
+| | **S9** | 02 Jul 2026 | Pruebas de estrés y auditoría de seguridad JWT. | Implementación de firma táctil (Signature Pad). | App captura firma y envía encuestas completas. | ⏳ Sin Iniciar |
+| | **S10** | 09 Jul 2026 | Documentación técnica de API (Swagger/Postman). | Integración GPS en Flutter (coordenadas). | **Motor Móvil & Evidencias:** Respuestas con fotos, firma y GPS en BD. | ⏳ Sin Iniciar |
+| **Fase 4: Reportes y Cierre** | **S11** | 16 Jul 2026 | Optimización del servicio de PDF y corrección de bugs. | Pruebas de rendimiento en baja conectividad. | **Servicio de PDF:** PDF generado automáticamente con branding. | ⏳ Sin Iniciar |
+| | **S12** | 23 Jul 2026 | API de reportería completa (filtros, históricos). | Optimización de app móvil (caché, fluidez). | **API Reportería:** Endpoints listos para frontend web. | ⏳ Sin Iniciar |
+| | **S13** | 30 Jul 2026 | Pruebas E2E (backend ↔ app) y estabilización. | Pruebas de compatibilidad (resoluciones, Android/iOS). | **Sistema Integrado:** Sistema congelado y estable. | ⏳ Sin Iniciar |
+| | **S14** | 06 Ago 2026 | Documentación final de API (Swagger/Postman). | Redacción manual de usuario app. | **Doc. Técnica:** Documentación API + manual de usuario. | ⏳ Sin Iniciar |
+| | **S15** | 13 Ago 2026 | Preparación del backend y scripts de BD para entrega. | Empaquetado final .apk y código móvil listo. | **Manual de Usuario y Código Fuente:** Entrega final del ecosistema completo. | ⏳ Sin Iniciar |
 ---
 
 ## Estructura del Proyecto
