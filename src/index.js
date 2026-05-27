@@ -7,11 +7,11 @@ const resolvers = require('./resolvers');
 const server = new ApolloServer({
   typeDefs,
   resolvers,
-  // Contexto: Extrae y verifica el JWT en cada petición HTTP
+  //Extrae y verifica el JWT en cada petición HTTP
   context: ({ req }) => {
     const authHeader = req.headers.authorization || '';
     
-    // El estándar de la industria dicta recibir: "Bearer <TOKEN_AQUÍ>"
+    // El estándar de la industria dicta recibir: "Bearer <TOKEN_AQUI>"
     if (authHeader.startsWith('Bearer ')) {
       const token = authHeader.replace('Bearer ', '');
       try {
