@@ -34,6 +34,7 @@ A continuación, se detalla el plan maestro de desarrollo estructurado en fases 
 | | **S13** | 30 Jul 2026 | Pruebas E2E (backend ↔ app) y estabilización. | Pruebas de compatibilidad (resoluciones, Android/iOS). | **Sistema Integrado:** Sistema congelado y estable. | ⏳ Sin Iniciar |
 | | **S14** | 06 Ago 2026 | Documentación final de API (Swagger/Postman). | Redacción manual de usuario app. | **Doc. Técnica:** Documentación API + manual de usuario. | ⏳ Sin Iniciar |
 | | **S15** | 13 Ago 2026 | Preparación del backend y scripts de BD para entrega. | Empaquetado final .apk y código móvil listo. | **Manual de Usuario y Código Fuente:** Entrega final del ecosistema completo. | ⏳ Sin Iniciar |
+
 ---
 
 ## Estructura del Proyecto
