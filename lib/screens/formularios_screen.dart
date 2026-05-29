@@ -1,0 +1,178 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
+
+class FormulariosScreen extends StatefulWidget {
+  const FormulariosScreen({super.key});
+
+  @override
+  State<FormulariosScreen> createState() => _FormulariosScreenState();
+}
+
+class _FormulariosScreenState extends State<FormulariosScreen> {
+  List<dynamic> _formularios = [];
+  bool _isLoading = true;
+  bool _isOnline = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarFormularios();
+  }
+
+  Future<void> _cargarFormularios() async {
+    setState(() => _isLoading = true);
+
+    // Intentar cargar desde API
+    final formulariosAPI = await AuthService.getFormulariosDisponibles();
+    
+    if (formulariosAPI.isNotEmpty) {
+      // Si hay conexión, guardar localmente
+      await AuthService.saveFormulariosLocal(formulariosAPI);
+      setState(() {
+        _formularios = formulariosAPI;
+        _isOnline = true;
+      });
+    } else {
+      // Si no hay conexión, cargar desde cache local
+      final formulariosLocal = await AuthService.getFormulariosLocal();
+      setState(() {
+        _formularios = formulariosLocal;
+        _isOnline = false;
+      });
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _refreshFormularios() async {
+    await _cargarFormularios();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_formularios.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.assignment_turned_in, size: 80, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              _isOnline ? 'No hay formularios disponibles' : 'Sin conexión y sin caché',
+              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 20),
+            if (!_isOnline)
+              const Text(
+                'Conéctate a internet para descargar formularios',
+                style: TextStyle(color: Colors.grey),
+              ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _refreshFormularios,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _refreshFormularios,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _formularios.length,
+        itemBuilder: (context, index) {
+          final formulario = _formularios[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 16),
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: InkWell(
+              onTap: () {
+                // TODO: Navegar a detalle del formulario (Semana 5)
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Formulario: ${formulario['titulo']} - Próximamente'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3498db).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.assignment, color: Color(0xFF3498db), size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            formulario['titulo'] ?? 'Sin título',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          if (formulario['descripcion'] != null && formulario['descripcion'].isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                formulario['descripcion'],
+                                style: const TextStyle(fontSize: 14, color: Colors.grey),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Chip(
+                                label: Text(
+                                  formulario['estado'] ?? 'borrador',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: formulario['estado'] == 'publicado' ? Colors.green : Colors.orange,
+                                  ),
+                                ),
+                                backgroundColor: formulario['estado'] == 'publicado'
+                                    ? Colors.green.withOpacity(0.2)
+                                    : Colors.orange.withOpacity(0.2),
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              const SizedBox(width: 8),
+                              if (formulario['version'] != null)
+                                Chip(
+                                  label: Text('v${formulario['version']}', style: const TextStyle(fontSize: 12)),
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}

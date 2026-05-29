@@ -1,0 +1,214 @@
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
+import 'formularios_screen.dart';
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _selectedIndex = 0;
+  Map<String, dynamic>? _userData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarUsuario();
+  }
+
+  Future<void> _cargarUsuario() async {
+    final user = await AuthService.getUser();
+    setState(() {
+      _userData = user;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _logout() async {
+    await AuthService.clearSession();
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
+  }
+
+  final List<Widget> _screens = [
+    const HomeContent(),
+    const FormulariosScreen(),
+  ];
+
+  final List<String> _titles = ['Inicio', 'Formularios'];
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_titles[_selectedIndex]),
+        backgroundColor: const Color(0xFF3498db),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
+            tooltip: 'Cerrar sesión',
+          ),
+        ],
+      ),
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) => setState(() => _selectedIndex = index),
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: const Color(0xFF3498db),
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
+          BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'Formularios'),
+        ],
+      ),
+    );
+  }
+}
+
+// Pantalla de Inicio / Home
+class HomeContent extends StatelessWidget {
+  const HomeContent({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: AuthService.getUser(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final user = snapshot.data!;
+        
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Tarjeta de perfil
+              Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: const Color(0xFF3498db),
+                        child: Text(
+                          user['nombre']?.substring(0, 1).toUpperCase() ?? 'U',
+                          style: const TextStyle(fontSize: 40, color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        user['nombre'] ?? 'Usuario',
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        user['email'] ?? '',
+                        style: const TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 8),
+                      Chip(
+                        label: Text(user['rol'] ?? 'usuario'),
+                        backgroundColor: const Color(0xFF3498db).withOpacity(0.2),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Estadísticas',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      Icons.assignment,
+                      'Formularios',
+                      '0',
+                      Colors.blue,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildStatCard(
+                      Icons.check_circle,
+                      'Completados',
+                      '0',
+                      Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      Icons.pending,
+                      'Pendientes',
+                      '0',
+                      Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildStatCard(
+                      Icons.cloud_sync,
+                      'Sincronizados',
+                      '0',
+                      Colors.purple,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatCard(IconData icon, String title, String value, Color color) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(icon, size: 40, color: color),
+            const SizedBox(height: 8),
+            Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(title, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+  }
+}
