@@ -7,6 +7,52 @@ class AuthService {
   static const String _tokenKey = 'auth_token';
   static const String _userKey = 'user_data';
 
+
+// Agregar este método a AuthService
+static Future<List<dynamic>> getFormulariosDisponibles() async {
+  const String query = '''
+    query {
+      getFormulariosDisponibles {
+        id
+        titulo
+        descripcion
+        version
+        estado
+      }
+    }
+  ''';
+
+  final response = await http.post(
+    Uri.parse(apiUrl),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({'query': query}),
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    if (data['data'] != null && data['data']['getFormulariosDisponibles'] != null) {
+      return data['data']['getFormulariosDisponibles'];
+    }
+  }
+  return [];
+}
+
+// Guardar formularios localmente
+static Future<void> saveFormulariosLocal(List<dynamic> formularios) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('formularios_cache', jsonEncode(formularios));
+}
+
+// Obtener formularios de cache local
+static Future<List<dynamic>> getFormulariosLocal() async {
+  final prefs = await SharedPreferences.getInstance();
+  final String? formsStr = prefs.getString('formularios_cache');
+  if (formsStr != null) {
+    return jsonDecode(formsStr);
+  }
+  return [];
+}
+
   // Guardar token
   static Future<void> saveToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
@@ -89,3 +135,4 @@ class AuthService {
     return {'success': false, 'error': 'Error de conexión'};
   }
 }
+
