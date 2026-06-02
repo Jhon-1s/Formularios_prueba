@@ -1,7 +1,7 @@
 const { gql } = require('apollo-server-express');
 
 const typeDefs = gql`
-  # --- SEMANA 1, 2 Y 3 (Autenticación y Empresas) ---
+  # --- TABLAS BASE (SEMANAS 1 - 3) ---
   type Usuario {
     id: ID!
     empresa_id: Int
@@ -22,7 +22,7 @@ const typeDefs = gql`
     usuario: Usuario!
   }
 
-  # --- NUEVOS TIPOS: SEMANA 4 (Sincronización de Formularios) ---
+  # --- FORMULARIOS ENCABEZADO (SEMANA 4) ---
   type Formulario {
     id: ID!
     titulo: String!
@@ -44,23 +44,38 @@ const typeDefs = gql`
     encabezado_id: ID
   }
 
+  # --- MOTOR DINÁMICO ADAPTADO A TU TABLA REAL (SEMANA 5) ---
+  type CampoDinamico {
+    id: ID!
+    seccion_id: Int
+    tipo_campo: String!
+    etiqueta: String!
+    ayuda: String
+    placeholder: String
+    orden: Int!
+    obligatorio: Boolean
+    visible: Boolean
+    editable: Boolean
+    config: String             
+    reglas_validacion: String  
+  }
+
   # --- QUERIES ---
   type Query {
     ping: String!
     perfil: Usuario
     getEmpresas: [Empresa!]!
     getEmpresa(id: ID!): Empresa
-    
-    # Endpoint Semana 4: Flutter descarga la lista de formularios
     getFormulariosDisponibles: [Formulario!]!
+    
+    # Endpoint definitivo para tu tabla real de la Semana 5
+    getCamposPorSeccion(seccion_id: ID!): [CampoDinamico!]!
   }
 
   # --- MUTATIONS ---
   type Mutation {
     login(email: String!, password: String!): AuthPayload!
     crearEmpresa(nombre: String!, logo_url: String): Empresa!
-    
-    # Endpoint Semana 4: Flutter envía las respuestas capturadas
     guardarRespuestaMovil(
       formulario_id: Int!
       usuario_email: String!
