@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
+import 'responder_formulario_screen.dart'; // Pantalla de respuesta
 
 class FormulariosScreen extends StatefulWidget {
   const FormulariosScreen({super.key});
@@ -96,11 +97,17 @@ class _FormulariosScreenState extends State<FormulariosScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: InkWell(
               onTap: () {
-                // TODO: Navegar a detalle del formulario (Semana 5)
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Formulario: ${formulario['titulo']} - Próximamente'),
-                    duration: const Duration(seconds: 2),
+                // ✅ SEMANA 5: Navegar a pantalla de responder formulario
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ResponderFormularioScreen(
+                      formulario: {
+                        'id': formulario['id'],
+                        'titulo': formulario['titulo'],
+                        'descripcion': formulario['descripcion'],
+                      },
+                    ),
                   ),
                 );
               },
