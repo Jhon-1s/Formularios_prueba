@@ -1,4 +1,4 @@
-const { gql } = require('apollo-server-express');
+const { gql } = require('apollo-server');
 
 const typeDefs = gql`
   # --- TABLAS BASE (SEMANAS 1 - 3) ---
