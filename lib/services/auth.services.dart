@@ -21,6 +21,56 @@ static Future<List<dynamic>> getFormulariosDisponibles() async {
       }
     }
   ''';
+  // Guardar respuestas del formulario
+static Future<Map<String, dynamic>> guardarRespuesta({
+  required int formularioId,
+  required String usuarioEmail,
+  required String usuarioNombre,
+  required List<Map<String, dynamic>> respuestas,
+}) async {
+  const String mutation = '''
+    mutation GuardarRespuestaMovil(
+      \$formulario_id: Int!,
+      \$usuario_email: String!,
+      \$usuario_nombre_completo: String!,
+      \$respuestas: [RespuestaDetalleInput!]!
+    ) {
+      guardarRespuestaMovil(
+        formulario_id: \$formulario_id,
+        usuario_email: \$usuario_email,
+        usuario_nombre_completo: \$usuario_nombre_completo,
+        respuestas: \$respuestas
+      ) {
+        success
+        message
+        encabezado_id
+      }
+    }
+  ''';
+
+  final response = await http.post(
+    Uri.parse(apiUrl),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({
+      'query': mutation,
+      'variables': {
+        'formulario_id': formularioId,
+        'usuario_email': usuarioEmail,
+        'usuario_nombre_completo': usuarioNombre,
+        'respuestas': respuestas,
+      },
+    }),
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    if (data['data'] != null && data['data']['guardarRespuestaMovil'] != null) {
+      return data['data']['guardarRespuestaMovil'];
+    }
+    return {'success': false, 'message': 'Error en el servidor'};
+  }
+  return {'success': false, 'message': 'Error de conexión'};
+}
 
   final response = await http.post(
     Uri.parse(apiUrl),
