@@ -1,20 +1,21 @@
-const { gql } = require('apollo-server');
+const { gql } = require('apollo-server-express');
 
 const typeDefs = gql`
-  # --- TABLAS BASE (SEMANAS 1 - 3) ---
-  type Usuario {
-    id: ID!
-    empresa_id: Int
-    nombre: String!
-    email: String!
-    rol: String!
-    activo: Boolean
-  }
-
+  # === TIPOS DE AUTENTICACIÓN Y EMPRESA (Anteriores) ===
   type Empresa {
     id: ID!
     nombre: String!
     logo_url: String
+    activo: Boolean
+  }
+
+  type Usuario {
+    id: ID!
+    empresa_id: ID!
+    nombre: String!
+    email: String!
+    rol: String!
+    activo: Boolean
   }
 
   type AuthPayload {
@@ -22,66 +23,110 @@ const typeDefs = gql`
     usuario: Usuario!
   }
 
-  # --- FORMULARIOS ENCABEZADO (SEMANA 4) ---
-  type Formulario {
+  type FormularioDisponible {
     id: ID!
     titulo: String!
     descripcion: String
-    version: Int
+    version: String
     estado: String
   }
 
-  input RespuestaDetalleInput {
-    pregunta_id: Int!
-    valor_texto: String
-    valor_numero: Float
-    valor_booleano: Boolean
-  }
-
-  type GuardarRespuestaResponse {
-    success: Boolean!
-    message: String!
-    encabezado_id: ID
-  }
-
-  # --- MOTOR DINÁMICO ADAPTADO A TU TABLA REAL (SEMANA 5) ---
-  type CampoDinamico {
+  type CampoSeccion {
     id: ID!
-    seccion_id: Int
+    seccion_id: ID!
     tipo_campo: String!
     etiqueta: String!
     ayuda: String
     placeholder: String
     orden: Int!
-    obligatorio: Boolean
-    visible: Boolean
-    editable: Boolean
-    config: String             
-    reglas_validacion: String  
+    obligatorio: Boolean!
+    visible: Boolean!
+    editable: Boolean!
+    config: String
+    reglas_validacion: String
   }
 
-  # --- QUERIES ---
+  type MutacionMovilResponse {
+    success: Boolean!
+    message: String!
+    encabezado_id: ID
+  }
+
+  # === TIPOS DEL MOTOR DINÁMICO Y GPS (Semana 6) ===
+  type CampoConfig {
+    id: ID!
+    tipo: String!         
+    etiqueta: String!     
+    requerido: Boolean!
+    orden: Int!
+  }
+
+  type FormularioEstructura {
+    id: ID!
+    titulo: String!
+    empresaId: ID!        
+    campos: [CampoConfig!]! 
+  }
+
+  type UbicacionGPS {
+    latitud: Float!
+    longitud: Float!
+  }
+
+  type RespuestaCampo {
+    campoId: ID!
+    valor: String          
+  }
+
+  # === QUERIES UNIFICADAS ===
   type Query {
     ping: String!
     perfil: Usuario
     getEmpresas: [Empresa!]!
     getEmpresa(id: ID!): Empresa
-    getFormulariosDisponibles: [Formulario!]!
+    getFormulariosDisponibles: [FormularioDisponible!]!
+    getCamposPorSeccion(seccion_id: ID!): [CampoSeccion!]!
     
-    # Endpoint definitivo para tu tabla real de la Semana 5
-    getCamposPorSeccion(seccion_id: ID!): [CampoDinamico!]!
+    # Motor Dinámico S6
+    getFormularioPorId(id: ID!, empresaId: ID!): FormularioEstructura!
   }
 
-  # --- MUTATIONS ---
+  # === MUTATIONS UNIFICADAS ===
   type Mutation {
     login(email: String!, password: String!): AuthPayload!
     crearEmpresa(nombre: String!, logo_url: String): Empresa!
     guardarRespuestaMovil(
-      formulario_id: Int!
-      usuario_email: String!
-      usuario_nombre_completo: String!
-      respuestas: [RespuestaDetalleInput!]!
-    ): GuardarRespuestaResponse!
+      formulario_id: ID!,
+      usuario_email: String!,
+      usuario_nombre_completo: String!,
+      respuestas: [RespuestaMovilInput!]!
+    ): MutacionMovilResponse!
+
+    # Registro de Respuestas + GPS S6
+    guardarRespuestasFormulario(
+      formularioId: ID!,
+      usuarioId: ID!,
+      respuestas: [RespuestaCampoInput!]!,
+      gps: UbicacionGPSInput!
+    ): Boolean!
+  }
+
+  # === INPUTS ===
+  input RespuestaMovilInput {
+    pregunta_id: ID!
+    valor_texto: String
+    valor_numero: Float
+    valor_booleano: Boolean
+  }
+
+  input UbicacionGPSInput {
+    latitud: Float!
+    longitud: Float!
+  }
+
+  input RespuestaCampoInput {
+    campoId: ID!
+    valor: String
   }
 `;
 

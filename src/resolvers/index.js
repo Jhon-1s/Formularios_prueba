@@ -3,9 +3,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const resolvers = {
-  Query: {
+  Query: {    
     ping: () => "pong",
-    
+
     perfil: async (_, __, context) => {
       if (!context.usuario) throw new Error('No autorizado. Token inválido o ausente.');
       const [rows] = await pool.query('SELECT id, empresa_id, nombre, email, rol, activo FROM usuario WHERE id = ?', [context.usuario.id]);
@@ -36,7 +36,6 @@ const resolvers = {
     // --- ENDPOINT SEMANA 5: Apuntando a tu tabla real 'pregunta' ---
     getCamposPorSeccion: async (_, { seccion_id }) => {
       try {
-        // Cambiado a FROM pregunta para que coincida perfectamente con tu MySQL
         const [rows] = await pool.query(
           `SELECT 
             id, seccion_id, tipo_campo, etiqueta, ayuda, placeholder, orden,
@@ -49,7 +48,6 @@ const resolvers = {
           [seccion_id]
         );
 
-        // Mapeamos los tinyint (0 o 1) de MySQL a booleanos reales de GraphQL
         return rows.map(campo => ({
           ...campo,
           obligatorio: campo.obligatorio === 1,
@@ -61,6 +59,44 @@ const resolvers = {
 
       } catch (error) {
         throw new Error(`Error al obtener campos de la sección: ${error.message}`);
+      }
+    },
+
+    // AHORA SÍ: getFormularioPorId dentro de las llaves de Query
+    getFormularioPorId: async (_, { id, empresaId }) => {
+      try {
+        const [formResult] = await pool.query(
+          'SELECT id, titulo FROM formularios WHERE id = ? AND empresa_id = ? AND estado = 1',
+          [id, empresaId]
+        );
+
+        if (formResult.length === 0) {
+          throw new Error('El formulario solicitado no existe o no pertenece a su organización.');
+        }
+
+        const formulario = formResult[0];
+
+        const [camposResult] = await pool.query(
+          'SELECT id, tipo, etiqueta, orden, configuracion FROM campos_formulario WHERE formulario_id = ? ORDER BY orden ASC',
+          [id]
+        );
+
+        const camposMapeados = camposResult.map(campo => ({
+          id: campo.id,
+          tipo: campo.tipo,
+          etiqueta: campo.etiqueta,
+          orden: campo.orden,
+          requerido: campo.configuracion?.requerido || false
+        }));
+
+        return {
+          id: formulario.id,
+          titulo: formulario.titulo,
+          empresaId: empresaId,
+          campos: camposMapeados
+        };
+      } catch (error) {
+        throw new Error(`Error en motor dinámico: ${error.message}`);
       }
     }
   },
@@ -109,6 +145,24 @@ const resolvers = {
         return { success: true, message: "Respuestas guardadas exitosamente en el servidor.", encabezado_id: encabezadoId };
       } catch (error) {
         return { success: false, message: `Error al almacenar respuestas: ${error.message}`, encabezado_id: null };
+      }
+    },
+
+    guardarRespuestasFormulario: async (_, { formularioId, usuarioId, respuestas, gps }) => {
+      try {
+        const { latitud, longitud } = gps;
+        const respuestasJsonString = JSON.stringify(respuestas);
+
+        const [insertResult] = await pool.query(
+          `INSERT INTO respuestas_formulario 
+           (formulario_id, usuario_id, latitud, longitud, valores_respuestas) 
+           VALUES (?, ?, ?, ?, ?)`,
+          [formularioId, usuarioId, latitud, longitud, respuestasJsonString]
+        );
+
+        return insertResult.affectedRows > 0;
+      } catch (error) {
+        throw new Error(`Error al almacenar respuestas y GPS: ${error.message}`);
       }
     }
   }
