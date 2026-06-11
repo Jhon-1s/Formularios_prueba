@@ -1,184 +1,267 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/auth_service.dart';
-import 'responder_formulario_screen.dart'; // Pantalla de respuesta
+import '../services/formulario_service.dart';
+import '../models/pregunta_model.dart';
+import '../widgets/form_fields.dart';
 
-class FormulariosScreen extends StatefulWidget {
-  const FormulariosScreen({super.key});
+class ResponderFormularioScreen extends StatefulWidget {
+  final Map<String, dynamic> formulario;
+
+  const ResponderFormularioScreen({super.key, required this.formulario});
 
   @override
-  State<FormulariosScreen> createState() => _FormulariosScreenState();
+  State<ResponderFormularioScreen> createState() => _ResponderFormularioScreenState();
 }
 
-class _FormulariosScreenState extends State<FormulariosScreen> {
-  List<dynamic> _formularios = [];
+class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final Map<int, dynamic> _respuestas = {};
   bool _isLoading = true;
-  bool _isOnline = true;
+  bool _isSaving = false;
+  Map<String, dynamic>? _estructura;
+  Position? _ubicacionActual;
+  String? _direccionActual;
 
   @override
   void initState() {
     super.initState();
-    _cargarFormularios();
+    _cargarEstructura();
+    _obtenerUbicacion();
   }
 
-  Future<void> _cargarFormularios() async {
-    setState(() => _isLoading = true);
-
-    // Intentar cargar desde API
-    final formulariosAPI = await AuthService.getFormulariosDisponibles();
-    
-    if (formulariosAPI.isNotEmpty) {
-      // Si hay conexión, guardar localmente
-      await AuthService.saveFormulariosLocal(formulariosAPI);
-      setState(() {
-        _formularios = formulariosAPI;
-        _isOnline = true;
-      });
-    } else {
-      // Si no hay conexión, cargar desde cache local
-      final formulariosLocal = await AuthService.getFormulariosLocal();
-      setState(() {
-        _formularios = formulariosLocal;
-        _isOnline = false;
-      });
+  // Obtener ubicación GPS
+  Future<void> _obtenerUbicacion() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Habilita el GPS para continuar')),
+      );
+      return;
     }
 
-    setState(() => _isLoading = false);
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return;
+      }
+    }
+
+    final position = await Geolocator.getCurrentPosition();
+    setState(() {
+      _ubicacionActual = position;
+      _direccionActual = 'Lat: ${position.latitude}, Lng: ${position.longitude}';
+    });
   }
 
-  Future<void> _refreshFormularios() async {
-    await _cargarFormularios();
+  // Cargar estructura del formulario desde backend
+  Future<void> _cargarEstructura() async {
+    setState(() => _isLoading = true);
+    
+    final estructura = await AuthService.getEstructuraFormulario(widget.formulario['id']);
+    
+    setState(() {
+      _estructura = estructura;
+      _isLoading = false;
+    });
+  }
+
+  // Construir campo según tipo
+  Widget _buildField(Pregunta pregunta) {
+    if (!pregunta.visible) return const SizedBox.shrink();
+
+    switch (pregunta.tipoCampo) {
+      case 'texto':
+      case 'email':
+      case 'telefono':
+        return DynamicTextField(
+          label: pregunta.etiqueta,
+          placeholder: pregunta.placeholder,
+          required: pregunta.obligatorio,
+          keyboardType: pregunta.tipoCampo == 'email' 
+              ? TextInputType.emailAddress 
+              : TextInputType.text,
+          maxLength: pregunta.maxLength,
+          minLength: pregunta.minLength,
+          onChanged: (value) => _respuestas[pregunta.id] = value,
+        );
+
+      case 'numero':
+        return DynamicNumberField(
+          label: pregunta.etiqueta,
+          placeholder: pregunta.placeholder,
+          required: pregunta.obligatorio,
+          onChanged: (value) => _respuestas[pregunta.id] = value,
+        );
+
+      case 'seleccion_unica':
+        return DynamicDropdown(
+          label: pregunta.etiqueta,
+          options: pregunta.getOpciones(),
+          required: pregunta.obligatorio,
+          onChanged: (value) => _respuestas[pregunta.id] = value,
+        );
+
+      case 'seleccion_multiple':
+        return DynamicCheckboxGroup(
+          label: pregunta.etiqueta,
+          options: pregunta.getOpciones(),
+          required: pregunta.obligatorio,
+          onChanged: (values) => _respuestas[pregunta.id] = values,
+        );
+
+      case 'fecha':
+        return DynamicDatePicker(
+          label: pregunta.etiqueta,
+          required: pregunta.obligatorio,
+          includeTime: false,
+          onChanged: (date) => _respuestas[pregunta.id] = date.toIso8601String(),
+        );
+
+      case 'fechahora':
+        return DynamicDatePicker(
+          label: pregunta.etiqueta,
+          required: pregunta.obligatorio,
+          includeTime: true,
+          onChanged: (date) => _respuestas[pregunta.id] = date.toIso8601String(),
+        );
+
+      case 'booleano':
+        return DynamicSwitch(
+          label: pregunta.etiqueta,
+          required: pregunta.obligatorio,
+          onChanged: (value) => _respuestas[pregunta.id] = value,
+        );
+
+      default:
+        return DynamicTextField(
+          label: pregunta.etiqueta,
+          placeholder: pregunta.placeholder,
+          required: pregunta.obligatorio,
+          onChanged: (value) => _respuestas[pregunta.id] = value,
+        );
+    }
+  }
+
+  // Guardar respuestas
+  Future<void> _guardarRespuestas() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    final respuestasFormateadas = _respuestas.entries.map((entry) {
+      return {
+        'pregunta_id': entry.key,
+        'valor_texto': entry.value is String ? entry.value : null,
+        'valor_numero': entry.value is num ? entry.value : null,
+        'valor_booleano': entry.value is bool ? entry.value : null,
+      };
+    }).toList();
+
+    final user = await AuthService.getUser();
+    final result = await AuthService.guardarRespuesta(
+      formularioId: widget.formulario['id'],
+      usuarioEmail: user?['email'] ?? 'anonimo@demo.com',
+      usuarioNombre: user?['nombre'] ?? 'Usuario Anónimo',
+      respuestas: respuestasFormateadas,
+    );
+
+    setState(() => _isSaving = false);
+
+    if (mounted && result['success']) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Respuestas guardadas'), backgroundColor: Colors.green),
+      );
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_formularios.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.assignment_turned_in, size: 80, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              _isOnline ? 'No hay formularios disponibles' : 'Sin conexión y sin caché',
-              style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 20),
-            if (!_isOnline)
-              const Text(
-                'Conéctate a internet para descargar formularios',
-                style: TextStyle(color: Colors.grey),
-              ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _refreshFormularios,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
-            ),
-          ],
-        ),
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _refreshFormularios,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _formularios.length,
-        itemBuilder: (context, index) {
-          final formulario = _formularios[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: InkWell(
-              onTap: () {
-                // ✅ SEMANA 5: Navegar a pantalla de responder formulario
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ResponderFormularioScreen(
-                      formulario: {
-                        'id': formulario['id'],
-                        'titulo': formulario['titulo'],
-                        'descripcion': formulario['descripcion'],
-                      },
-                    ),
+    if (_estructura == null || _estructura!.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.formulario['titulo'])),
+        body: const Center(child: Text('Error al cargar el formulario')),
+      );
+    }
+
+    final secciones = _estructura!['secciones'] ?? [];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_estructura!['titulo'] ?? widget.formulario['titulo']),
+        backgroundColor: const Color(0xFF3498db),
+        foregroundColor: Colors.white,
+      ),
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // GPS info
+              if (_ubicacionActual != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.shade200),
                   ),
-                );
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3498db).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.assignment, color: Color(0xFF3498db), size: 28),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            formulario['titulo'] ?? 'Sin título',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          if (formulario['descripcion'] != null && formulario['descripcion'].isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                formulario['descripcion'],
-                                style: const TextStyle(fontSize: 14, color: Colors.grey),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Chip(
-                                label: Text(
-                                  formulario['estado'] ?? 'borrador',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: formulario['estado'] == 'publicado' ? Colors.green : Colors.orange,
-                                  ),
-                                ),
-                                backgroundColor: formulario['estado'] == 'publicado'
-                                    ? Colors.green.withOpacity(0.2)
-                                    : Colors.orange.withOpacity(0.2),
-                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              const SizedBox(width: 8),
-                              if (formulario['version'] != null)
-                                Chip(
-                                  label: Text('v${formulario['version']}', style: const TextStyle(fontSize: 12)),
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                            ],
-                          ),
-                        ],
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_on, color: Colors.green.shade700),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(_direccionActual ?? 'Ubicación obtenida')),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 20),
+
+              // Secciones y preguntas dinámicas
+              ...secciones.expand((seccion) {
+                final preguntas = (seccion['preguntas'] as List)
+                    .map((p) => Pregunta.fromJson(p))
+                    .toList();
+                
+                return [
+                  if (seccion['titulo'] != null && seccion['titulo'].isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16, bottom: 8),
+                      child: Text(
+                        seccion['titulo'],
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                     ),
-                    const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
-                  ],
+                  ...preguntas.map((p) => _buildField(p)),
+                ];
+              }),
+
+              const SizedBox(height: 30),
+              SizedBox(
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _guardarRespuestas,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3498db),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isSaving
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text('Guardar Respuestas', style: TextStyle(fontSize: 16)),
                 ),
               ),
-            ),
-          );
-        },
+            ],
+          ),
+        ),
       ),
     );
   }
