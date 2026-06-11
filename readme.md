@@ -39,4 +39,4 @@ A continuación, se detalla el plan maestro de desarrollo estructurado en fases 
 
 ## Estructura del Proyecto
 
-## Documentación
+## Documentación  
