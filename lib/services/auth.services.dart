@@ -8,6 +8,56 @@ class AuthService {
   static const String _userKey = 'user_data';
 
 
+// Obtener estructura completa del formulario
+static Future<Map<String, dynamic>> getEstructuraFormulario(int formularioId) async {
+  const String query = '''
+    query GetFormularioEstructura(\$id: ID!) {
+      getFormulario(id: \$id) {
+        id
+        titulo
+        descripcion
+        cabecera_pdf
+        secciones {
+          id
+          titulo
+          descripcion
+          orden
+          config
+          preguntas {
+            id
+            tipo_campo
+            etiqueta
+            ayuda
+            placeholder
+            orden
+            obligatorio
+            visible
+            editable
+            config
+            reglas_validacion
+          }
+        }
+      }
+    }
+  ''';
+
+  final response = await http.post(
+    Uri.parse(apiUrl),
+    headers: {'Content-Type': 'application/json'},
+    body: jsonEncode({
+      'query': query,
+      'variables': {'id': formularioId.toString()},
+    }),
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    if (data['data'] != null && data['data']['getFormulario'] != null) {
+      return data['data']['getFormulario'];
+    }
+  }
+  return {};
+}
 // Agregar este método a AuthService
 static Future<List<dynamic>> getFormulariosDisponibles() async {
   const String query = '''
