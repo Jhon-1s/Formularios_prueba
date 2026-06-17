@@ -98,6 +98,55 @@ const resolvers = {
       } catch (error) {
         throw new Error(`Error en motor dinámico: ${error.message}`);
       }
+    },
+    getInspeccionesPorEmpresa: async (_, { empresaId }) => {
+      try {
+        const [rows] = await pool.query(
+          `SELECT 
+            rf.id,
+            rf.formulario_id AS formularioId,
+            f.titulo AS tituloFormulario,
+            rf.usuario_id AS usuarioId,
+            u.nombre AS nombreUsuario,
+            rf.created_at AS fechaCreado,
+            rf.latitud,
+            rf.longitud,
+            rf.valores_respuestas AS respuestas
+          FROM respuestas_formulario rf
+          JOIN formularios f ON rf.formulario_id = f.id
+          JOIN usuarios u ON rf.usuario_id = u.id
+          WHERE f.empresa_id = ?
+          ORDER BY rf.created_at DESC`,
+          [empresaId]
+        );
+
+        // Mapeamos los resultados y parseamos el JSON string nativo de MySQL
+        return rows.map(row => {
+          let respuestasParseadas = [];
+          try {
+            respuestasParseadas = typeof row.respuestas === 'string' 
+              ? JSON.parse(row.respuestas) 
+              : (row.respuestas || []);
+          } catch (e) {
+            console.error(`Error al parsear JSON de la inspección ${row.id}:`, e);
+          }
+
+          return {
+            id: row.id,
+            formularioId: row.formularioId,
+            tituloFormulario: row.tituloFormulario,
+            usuarioId: row.usuarioId,
+            nombreUsuario: row.nombreUsuario,
+            fechaCreado: row.fechaCreado ? new Date(row.fechaCreado).toISOString() : null,
+            latitud: parseFloat(row.latitud),
+            longitud: parseFloat(row.longitud),
+            respuestas: respuestasParseadas
+          };
+        });
+
+      } catch (error) {
+        throw new Error(`Error al generar el historial de reportes: ${error.message}`);
+      }
     }
   },
 
