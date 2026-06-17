@@ -1,7 +1,7 @@
 const { gql } = require('apollo-server-express');
 
 const typeDefs = gql`
-  # === TIPOS DE AUTENTICACIÓN Y EMPRESA (Anteriores) ===
+  # === TIPOS DE AUTENTICACIÓN Y EMPRESA ===
   type Empresa {
     id: ID!
     nombre: String!
@@ -77,6 +77,22 @@ const typeDefs = gql`
     campoId: ID!
     valor: String          
   }
+    type RespuestaHistorial {
+    campoId: ID!
+    valor: String
+  }
+
+  type InspeccionReporte {
+    id: ID!
+    formularioId: ID!
+    tituloFormulario: String
+    usuarioId: ID!
+    nombreUsuario: String
+    fechaCreado: String
+    latitud: Float
+    longitud: Float
+    respuestas: [RespuestaHistorial!]!
+  }
 
   # === QUERIES UNIFICADAS ===
   type Query {
@@ -86,9 +102,8 @@ const typeDefs = gql`
     getEmpresa(id: ID!): Empresa
     getFormulariosDisponibles: [FormularioDisponible!]!
     getCamposPorSeccion(seccion_id: ID!): [CampoSeccion!]!
-    
-    # Motor Dinámico S6
     getFormularioPorId(id: ID!, empresaId: ID!): FormularioEstructura!
+    getInspeccionesPorEmpresa(empresaId: ID!): [InspeccionReporte!]!
   }
 
   # === MUTATIONS UNIFICADAS ===
