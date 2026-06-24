@@ -77,11 +77,8 @@ const typeDefs = gql`
     campoId: ID!
     valor: String          
   }
-    type RespuestaHistorial {
-    campoId: ID!
-    valor: String
-  }
 
+  # === MÓDULO DE REPORTES (Semana 7) ===
   type InspeccionReporte {
     id: ID!
     formularioId: ID!
@@ -91,7 +88,7 @@ const typeDefs = gql`
     fechaCreado: String
     latitud: Float
     longitud: Float
-    respuestas: [RespuestaHistorial!]!
+    respuestas: [RespuestaCampo!]!
   }
 
   # === QUERIES UNIFICADAS ===
