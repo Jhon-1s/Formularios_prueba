@@ -50,6 +50,73 @@ class AuthService {
     }
   }
 
+  // ============================================================
+// SEMANA 8: GUARDAR RESPUESTAS CON FOTOS Y FIRMAS
+// ============================================================
+static Future<bool> guardarRespuestasConEvidencias({
+  required String formularioId,
+  required String usuarioId,
+  required double latitud,
+  required double longitud,
+  required List<Map<String, dynamic>> respuestas,
+  required List<Map<String, dynamic>> archivos, // NUEVO
+}) async {
+  const String mutation = '''
+    mutation GuardarInspeccionCompleta(
+      \$formularioId: String!
+      \$usuarioId: String!
+      \$gps: GPSInput!
+      \$respuestas: [RespuestaInput!]!
+      \$archivos: [ArchivoInput!]!
+    ) {
+      guardarRespuestasFormulario(
+        formularioId: \$formularioId
+        usuarioId: \$usuarioId
+        gps: \$gps
+        respuestas: \$respuestas
+        archivos: \$archivos
+      )
+    }
+  ''';
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final response = await http.post(
+      Uri.parse(apiUrl),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'query': mutation,
+        'variables': {
+          'formularioId': formularioId,
+          'usuarioId': usuarioId,
+          'gps': {
+            'latitud': latitud,
+            'longitud': longitud,
+          },
+          'respuestas': respuestas,
+          'archivos': archivos,
+        },
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['data'] != null && data['data']['guardarRespuestasFormulario'] != null) {
+        return data['data']['guardarRespuestasFormulario'] == true;
+      }
+    }
+    return false;
+  } catch (e) {
+    print('❌ Error al guardar: $e');
+    return false;
+  }
+}
+
   static Future<Map<String, dynamic>?> getUser() async {
     final prefs = await SharedPreferences.getInstance();
     final String? userStr = prefs.getString('user_data');

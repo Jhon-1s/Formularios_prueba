@@ -1,8 +1,11 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:signature/signature.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
 import '../models/pregunta_model.dart';
 import '../models/regla_model.dart';
@@ -25,6 +28,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
   final _formKey = GlobalKey<FormState>();
   final Map<int, dynamic> _respuestas = {};
   final Map<int, File> _fotos = {};
+  final Map<int, File> _firmas = {};
   final Map<int, SignatureController> _firmaControllers = {};
 
   bool _isLoading = true;
@@ -34,6 +38,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
   Position? _ubicacionActual;
   String? _ubicacionError;
   List<ReglaCondicional> _reglas = [];
+  List<Map<String, dynamic>> _archivosSubidos = [];
 
   @override
   void initState() {
@@ -42,7 +47,9 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
     _obtenerUbicacion();
   }
 
-  // ✅ CORREGIDO
+  // ============================================================
+  // OBTENER UBICACIÓN GPS
+  // ============================================================
   Future<void> _obtenerUbicacion() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -67,6 +74,9 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
     }
   }
 
+  // ============================================================
+  // CARGAR DATOS DEL FORMULARIO
+  // ============================================================
   Future<void> _cargarDatos() async {
     setState(() => _isLoading = true);
 
@@ -98,6 +108,9 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
     });
   }
 
+  // ============================================================
+  // EVALUAR REGLAS CONDICIONALES
+  // ============================================================
   void _evaluarReglas(int preguntaId, dynamic valor) {
     final reglasAplicables = _reglas.where((r) => r.preguntaOrigenId == preguntaId).toList();
 
@@ -117,18 +130,131 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
     });
   }
 
+  // ============================================================
+  // SEMANA 8: TOMAR FOTO
+  // ============================================================
   Future<void> _tomarFoto(int preguntaId) async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.camera);
-    if (image != null) {
-      setState(() {
-        _fotos[preguntaId] = File(image.path);
-        _respuestas[preguntaId] = image.path;
-      });
-      _evaluarReglas(preguntaId, image.path);
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+      
+      if (image != null) {
+        final file = File(image.path);
+        setState(() {
+          _fotos[preguntaId] = file;
+          _respuestas[preguntaId] = image.path;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('📸 Foto capturada correctamente'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error al tomar foto: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
+  // ============================================================
+  // SEMANA 8: CAPTURAR FIRMA
+  // ============================================================
+  Future<void> _guardarFirma(int preguntaId) async {
+    try {
+      final controller = _firmaControllers[preguntaId];
+      if (controller == null) return;
+      
+      final data = await controller.toPngBytes();
+      if (data != null) {
+        final tempDir = await getTemporaryDirectory();
+        final filePath = '${tempDir.path}/firma_$preguntaId.png';
+        final file = File(filePath);
+        await file.writeAsBytes(data);
+        
+        setState(() {
+          _firmas[preguntaId] = file;
+          _respuestas[preguntaId] = filePath;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Firma guardada correctamente'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error al guardar firma: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // ============================================================
+  // SEMANA 8: SUBIR ARCHIVO AL SERVIDOR
+  // ============================================================
+  Future<Map<String, dynamic>> _subirArchivo({
+    required File archivo,
+    required String tipo,
+    required int preguntaId,
+  }) async {
+    try {
+      final bytes = await archivo.readAsBytes();
+      final base64String = base64Encode(bytes);
+      final extension = archivo.path.split('.').last;
+      final nombreOriginal = '${tipo}_$preguntaId.$extension';
+      
+      final mutation = '''
+        mutation SubirArchivo(\$archivo: ArchivoInput!) {
+          subirArchivo(archivo: \$archivo) {
+            success
+            url
+            mensaje
+          }
+        }
+      ''';
+
+      final archivoInput = {
+        'nombreOriginal': nombreOriginal,
+        'mimeType': 'image/png',
+        'base64': base64String,
+        'tipo': tipo,
+        'preguntaId': preguntaId,
+        'formularioId': int.parse(widget.formulario['id']),
+      };
+
+      final prefs = await AuthService.getUser();
+      final token = prefs?['token'];
+
+      final response = await http.post(
+        Uri.parse(AuthService.apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'query': mutation,
+          'variables': {'archivo': archivoInput},
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null && data['data']['subirArchivo'] != null) {
+          return data['data']['subirArchivo'];
+        }
+      }
+      return {'success': false, 'mensaje': 'Error al subir archivo'};
+    } catch (e) {
+      return {'success': false, 'mensaje': 'Error: $e'};
+    }
+  }
+
+  // ============================================================
+  // CONSTRUIR CAMPO SEGÚN TIPO
+  // ============================================================
   Widget _buildCampo(Pregunta pregunta) {
     if (!pregunta.visible) return const SizedBox.shrink();
 
@@ -213,6 +339,9 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
           ),
         );
 
+      // ============================================================
+      // SEMANA 8: CAMPO FOTO ACTUALIZADO
+      // ============================================================
       case 'FOTO':
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
@@ -231,12 +360,48 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
                 child: Column(
                   children: [
                     if (_fotos.containsKey(pregunta.id))
-                      Image.file(_fotos[pregunta.id]!, height: 150, fit: BoxFit.cover),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          _fotos[pregunta.id]!,
+                          height: 150,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    else
+                      Container(
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                      ),
                     const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => _tomarFoto(pregunta.id),
-                      icon: const Icon(Icons.camera_alt),
-                      label: Text(_fotos.containsKey(pregunta.id) ? 'Re-tomar foto' : 'Tomar foto'),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _tomarFoto(pregunta.id),
+                          icon: const Icon(Icons.camera_alt),
+                          label: Text(_fotos.containsKey(pregunta.id) ? 'Re-tomar' : 'Tomar foto'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF3498db),
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                        if (_fotos.containsKey(pregunta.id))
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () {
+                              setState(() {
+                                _fotos.remove(pregunta.id);
+                                _respuestas.remove(pregunta.id);
+                              });
+                            },
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -250,6 +415,9 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
           ),
         );
 
+      // ============================================================
+      // SEMANA 8: CAMPO FIRMA ACTUALIZADO
+      // ============================================================
       case 'FIRMA':
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
@@ -279,20 +447,12 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
                   ),
                   const SizedBox(width: 16),
                   TextButton.icon(
-                    onPressed: () async {
-                      final data = await _firmaControllers[pregunta.id]!.toPngBytes();
-                      if (data != null) {
-                        final base64 = 'data:image/png;base64,${Uri.encodeComponent(String.fromCharCodes(data))}';
-                        _respuestas[pregunta.id] = base64;
-                        _evaluarReglas(pregunta.id, base64);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('✅ Firma capturada')),
-                        );
-                      }
-                    },
+                    onPressed: () => _guardarFirma(pregunta.id),
                     icon: const Icon(Icons.save),
-                    label: const Text('Guardar firma'),
+                    label: const Text('Guardar'),
                   ),
+                  if (_firmas.containsKey(pregunta.id))
+                    const Icon(Icons.check_circle, color: Colors.green, size: 20),
                 ],
               ),
             ],
@@ -304,9 +464,13 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
     }
   }
 
+  // ============================================================
+  // SEMANA 8: GUARDAR RESPUESTAS CON ARCHIVOS
+  // ============================================================
   Future<void> _guardarRespuestas() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validar campos obligatorios
     for (var pregunta in _preguntas) {
       if (!pregunta.visible) continue;
       if (pregunta.obligatorio) {
@@ -329,50 +493,104 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
 
     setState(() => _isSaving = true);
 
-    final respuestasFormateadas = _respuestas.entries.map((entry) {
-      return {
-        'campoId': entry.key.toString(),
-        'valor': entry.value.toString(),
-      };
-    }).toList();
+    try {
+      // 1. Subir fotos
+      List<Map<String, dynamic>> archivosSubidos = [];
+      for (var entry in _fotos.entries) {
+        final resultado = await _subirArchivo(
+          archivo: entry.value,
+          tipo: 'foto',
+          preguntaId: entry.key,
+        );
+        if (resultado['success'] == true) {
+          archivosSubidos.add({
+            'preguntaId': entry.key,
+            'url': resultado['url'],
+            'tipo': 'foto',
+          });
+        }
+      }
 
-    final success = await AuthService.guardarRespuestasFormulario(
-      formularioId: widget.formulario['id'].toString(),
-      usuarioId: widget.usuarioId,
-      latitud: _ubicacionActual!.latitude,
-      longitud: _ubicacionActual!.longitude,
-      respuestas: respuestasFormateadas,
-    );
+      // 2. Subir firmas
+      for (var entry in _firmas.entries) {
+        final resultado = await _subirArchivo(
+          archivo: entry.value,
+          tipo: 'firma',
+          preguntaId: entry.key,
+        );
+        if (resultado['success'] == true) {
+          archivosSubidos.add({
+            'preguntaId': entry.key,
+            'url': resultado['url'],
+            'tipo': 'firma',
+          });
+        }
+      }
 
-    setState(() => _isSaving = false);
+      // 3. Formatear respuestas
+      final respuestasFormateadas = _respuestas.entries.map((entry) {
+        return {
+          'campoId': entry.key.toString(),
+          'valor': entry.value.toString(),
+        };
+      }).toList();
 
-    if (mounted && success) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green),
-              SizedBox(width: 8),
-              Text('¡Éxito!'),
+      // 4. Guardar todo
+      final success = await AuthService.guardarRespuestasConEvidencias(
+        formularioId: widget.formulario['id'].toString(),
+        usuarioId: widget.usuarioId,
+        latitud: _ubicacionActual!.latitude,
+        longitud: _ubicacionActual!.longitude,
+        respuestas: respuestasFormateadas,
+        archivos: archivosSubidos,
+      );
+
+      setState(() => _isSaving = false);
+
+      if (mounted && success) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 8),
+                Text('¡Éxito!'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('El formulario se ha guardado correctamente.'),
+                if (archivosSubidos.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text('📸 ${archivosSubidos.length} archivo(s) subido(s)'),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: const Text('Aceptar'),
+              ),
             ],
           ),
-          content: const Text('El formulario se ha guardado correctamente.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
-              child: const Text('Aceptar'),
-            ),
-          ],
-        ),
-      );
-    } else if (mounted) {
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('❌ Error al guardar el formulario'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Error al guardar'), backgroundColor: Colors.red),
+        SnackBar(content: Text('❌ Error: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -397,6 +615,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // GPS
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(
@@ -425,8 +644,11 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
                 ),
               ),
               const SizedBox(height: 20),
+
               ..._preguntas.map((pregunta) => _buildCampo(pregunta)),
+
               const SizedBox(height: 30),
+
               SizedBox(
                 height: 52,
                 child: ElevatedButton(
@@ -449,6 +671,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
                 ),
               ),
               const SizedBox(height: 20),
+
               if (_reglas.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.all(12),
