@@ -24,7 +24,6 @@ const resolvers = {
 
     getFormulariosDisponibles: async () => {
       try {
-        // CORREGIDO: Tabla 'formularios' en plural y 'estado = 1' (Activo)
         const [rows] = await pool.query(
           "SELECT id, titulo, descripcion, '1' as version, estado FROM formularios WHERE estado = 1"
         );
@@ -100,11 +99,16 @@ const resolvers = {
       }
     },
 
-    // =========================================================================
-    // --- ENDPOINT SEMANA 7: Historial de Inspecciones por Empresa (Reportes) ---
-    // =========================================================================
-    getInspeccionesPorEmpresa: async (_, { empresaId }) => {
+    getInspeccionesPorEmpresa: async (_, { empresaId }, context) => {
       try {
+        if (!context.usuario) {
+          throw new Error('No autorizado. Token inválido o ausente.');
+        }
+
+        if (context.usuario.rol !== 'ADMIN') {
+          throw new Error('Acceso denegado. Se requieren permisos de Administrador.');
+        }
+
         const [rows] = await pool.query(
           `SELECT 
             rf.id,
@@ -148,7 +152,7 @@ const resolvers = {
         });
 
       } catch (error) {
-        throw new Error(`Error al generar el historial de reportes: ${error.message}`);
+        throw new Error(`[Módulo Reportes Error]: ${error.message}`);
       }
     }
   },
@@ -169,7 +173,6 @@ const resolvers = {
         { expiresIn: '8h' }
       );
 
-      // Normalizamos la salida para que coincida con el type GraphQL Email
       return { 
         token, 
         usuario: {
@@ -188,19 +191,25 @@ const resolvers = {
 
     guardarRespuestaMovil: async (_, { formulario_id, usuario_email, usuario_nombre_completo, respuestas }) => {
       try {
-        // Mantenido por total retrocompatibilidad con la S5 externa si es necesario
         return { success: true, message: "Modo dinámico activo. Redirigido a guardarRespuestasFormulario.", encabezado_id: 1 };
       } catch (error) {
         return { success: false, message: `Error: ${error.message}`, encabezado_id: null };
       }
     },
 
-    guardarRespuestasFormulario: async (_, { formularioId, usuarioId, respuestas, gps }) => {
+    guardarRespuestasFormulario: async (_, { formularioId, usuarioId, respuestas, gps }, context) => {
       try {
+        if (!formularioId || !usuarioId || !respuestas || respuestas.length === 0) {
+          throw new Error('Datos incompletos. El formulario debe contener respuestas.');
+        }
+
         const { latitud, longitud } = gps;
+        if (latitud === undefined || longitud === undefined) {
+          throw new Error('Se requiere geolocalización GPS válida para registrar la inspección.');
+        }
+
         const respuestasJsonString = JSON.stringify(respuestas);
 
-        // Aseguramos la inserción exacta en la tabla relacional
         const [insertResult] = await pool.query(
           `INSERT INTO respuestas_formulario 
            (formulario_id, usuario_id, latitud, longitud, valores_respuestas) 
@@ -210,7 +219,8 @@ const resolvers = {
 
         return insertResult.affectedRows > 0;
       } catch (error) {
-        throw new Error(`Error al almacenar respuestas y GPS: ${error.message}`);
+        console.error(`❌ Error controlado en guardarRespuestasFormulario: ${error.message}`);
+        throw new Error(`Error en el servidor al procesar la inspección: ${error.message}`);
       }
     }
   }
