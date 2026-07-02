@@ -14,7 +14,7 @@ Este repositorio contiene la infraestructura backend y la aplicación móvil nat
 ---
 
 ## Tabla de Control de Fases y Cronograma de Actividades
-
+} 
 A continuación, se detalla el plan maestro de desarrollo estructurado en fases de ingeniería y entregables semanales detallados para el control administrativo de la estadía:
 
 | Fase / Etapa | Sem | Fecha Reunión | Actividades Dev 1 (Backend / API) | Actividades Dev 2 (App Móvil / Integración) | Entregable de Avance Global | Estado Actual |
