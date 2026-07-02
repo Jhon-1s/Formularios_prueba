@@ -14,7 +14,7 @@ Este repositorio contiene la infraestructura backend y la aplicación móvil nat
 ---
 
 ## Tabla de Control de Fases y Cronograma de Actividades
-} 
+
 A continuación, se detalla el plan maestro de desarrollo estructurado en fases de ingeniería y entregables semanales detallados para el control administrativo de la estadía:
 
 | Fase / Etapa | Sem | Fecha Reunión | Actividades Dev 1 (Backend / API) | Actividades Dev 2 (App Móvil / Integración) | Entregable de Avance Global | Estado Actual |
@@ -26,8 +26,8 @@ A continuación, se detalla el plan maestro de desarrollo estructurado en fases 
 | **Fase 2: Motor Dinámico** | **S5** | 04 Jun 2026 | Endpoints para recibir archivos pesados (imágenes, firmas). | Componentes visuales en Flutter (texto, selectores, fecha). | Endpoints listos para cualquier tipo de pregunta. | **🟢 Finalizado** |
 | | **S6** | 11 Jun 2026 | API de geolocalización (GPS adjunto al envío). | Motor de renderizado dinámico en Flutter. | App dibuja formularios desde JSON del backend. | **🟢 Finalizado** |
 | | **S7** | 18 Jun 2026 | Servicio automático de generación de PDF (Puppeteer/PDFKit). | Evaluador de lógica condicional en tiempo real (mostrar/ocultar). | **API Core:** Formularios con lógica condicional en móvil. | **🟢 Finalizado** |
-| **Fase 3: Captura de Evidencias** | **S8** | 25 Jun 2026 | Endpoints de consulta histórica y filtros. | Integración de cámara en app móvil. | **App Flutter Funcional (Fase 1):** App captura fotos y las envía al backend. | **🟢 Finalizado**i |
-| | **S9** | 02 Jul 2026 | Pruebas de estrés y auditoría de seguridad JWT. | Implementación de firma táctil (Signature Pad). | App captura firma y envía encuestas completas. | ⏳ Sin Iniciar |
+| **Fase 3: Captura de Evidencias** | **S8** | 25 Jun 2026 | Endpoints de consulta histórica y filtros. | Integración de cámara en app móvil. | **App Flutter Funcional (Fase 1):** App captura fotos y las envía al backend. | **🟢 Finalizado** |
+| | **S9** | 02 Jul 2026 | Pruebas de estrés y auditoría de seguridad JWT. | Implementación de firma táctil (Signature Pad). | App captura firma y envía encuestas completas. | **🟢 Finalizado** |
 | | **S10** | 09 Jul 2026 | Documentación técnica de API (Swagger/Postman). | Integración GPS en Flutter (coordenadas). | **Motor Móvil & Evidencias:** Respuestas con fotos, firma y GPS en BD. | ⏳ Sin Iniciar |
 | **Fase 4: Reportes y Cierre** | **S11** | 16 Jul 2026 | Optimización del servicio de PDF y corrección de bugs. | Pruebas de rendimiento en baja conectividad. | **Servicio de PDF:** PDF generado automáticamente con branding. | ⏳ Sin Iniciar |
 | | **S12** | 23 Jul 2026 | API de reportería completa (filtros, históricos). | Optimización de app móvil (caché, fluidez). | **API Reportería:** Endpoints listos para frontend web. | ⏳ Sin Iniciar |
