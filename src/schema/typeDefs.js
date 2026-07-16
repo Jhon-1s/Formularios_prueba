@@ -91,6 +91,13 @@ const typeDefs = gql`
     respuestas: [RespuestaCampo!]!
   }
 
+  # === NUEVO TIPO: ESTADÍSTICAS DEL DASHBOARD (Semana 10) ===
+  type FormularioEstadistica {
+    activos: Int!
+    inactivos: Int!
+    total: Int!
+  }
+
   # === QUERIES UNIFICADAS ===
   type Query {
     ping: String!
@@ -101,6 +108,10 @@ const typeDefs = gql`
     getCamposPorSeccion(seccion_id: ID!): [CampoSeccion!]!
     getFormularioPorId(id: ID!, empresaId: ID!): FormularioEstructura!
     getInspeccionesPorEmpresa(empresaId: ID!): [InspeccionReporte!]!
+    
+    # NUEVAS QUERIES SEMANA 10
+    totalInspeccionesPorEmpresa(empresaId: ID!): Int!
+    obtenerResumenEstatusFormularios(empresaId: ID!): FormularioEstadistica!
   }
 
   # === MUTATIONS UNIFICADAS ===
