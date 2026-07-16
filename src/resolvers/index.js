@@ -154,8 +154,56 @@ const resolvers = {
       } catch (error) {
         throw new Error(`[Módulo Reportes Error]: ${error.message}`);
       }
+    },
+
+    // === NUEVAS QUERIES MÓDULO DASHBOARD SEMANA 10 ===
+    totalInspeccionesPorEmpresa: async (_, { empresaId }, context) => {
+      try {
+        if (!context.usuario || context.usuario.rol !== 'ADMIN') {
+          throw new Error('No autorizado para ver estadísticas globales.');
+        }
+
+        const [rows] = await pool.query(
+          `SELECT COUNT(rf.id) AS total 
+           FROM respuestas_formulario rf
+           JOIN formularios f ON rf.formulario_id = f.id
+           WHERE f.empresa_id = ?`,
+          [empresaId]
+        );
+        
+        return rows[0].total || 0;
+      } catch (error) {
+        throw new Error(`Error al calcular total de inspecciones: ${error.message}`);
+      }
+    },
+
+    obtenerResumenEstatusFormularios: async (_, { empresaId }, context) => {
+      try {
+        if (!context.usuario || context.usuario.rol !== 'ADMIN') {
+          throw new Error('No autorizado para ver estadísticas globales.');
+        }
+
+        const [rows] = await pool.query(
+          `SELECT 
+            SUM(CASE WHEN estado = 1 THEN 1 ELSE 0 END) AS activos,
+            SUM(CASE WHEN estado = 0 THEN 1 ELSE 0 END) AS inactivos,
+            COUNT(*) AS total
+           FROM formularios 
+           WHERE empresa_id = ?`,
+          [empresaId]
+        );
+
+        const resultado = rows[0];
+        return {
+          activos: resultado.activos || 0,
+          inactivos: resultado.inactivos || 0,
+          total: resultado.total || 0
+        };
+      } catch (error) {
+        throw new Error(`Error al obtener resumen de estatus: ${error.message}`);
+      }
     }
-  },
+  }, // <--- Aquí se cierra Query correctamente
 
   Mutation: {
     login: async (_, { email, password }) => {
