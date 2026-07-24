@@ -14,6 +14,9 @@ dependencies:
   # Dependencias del proyecto
   http: ^1.1.0
   shared_preferences: ^2.2.2
+  image: ^4.0.0             # NUEVO - Para comprimir imágenes
+  path_provider: ^2.1.0     # Ya existe
+  connectivity_plus: ^5.0.2 # NUEVO - Verificar internet
   geolocator: ^10.1.0
   image_picker: ^1.0.4
   signature: ^5.4.0

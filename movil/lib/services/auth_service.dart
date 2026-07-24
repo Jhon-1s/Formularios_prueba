@@ -117,6 +117,97 @@ static Future<bool> guardarRespuestasConEvidencias({
   }
 }
 
+// ============================================================
+// SEMANA 9: GUARDAR RESPUESTAS OFFLINE
+// ============================================================
+static Future<void> guardarRespuestaOffline({
+  required String formularioId,
+  required String usuarioId,
+  required Map<String, dynamic> respuestas,
+  required List<Map<String, dynamic>> archivos,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+  
+  // Obtener respuestas pendientes existentes
+  final pendientesStr = prefs.getString('respuestas_pendientes');
+  List<dynamic> pendientes = pendientesStr != null 
+      ? jsonDecode(pendientesStr) 
+      : [];
+  
+  // Agregar nueva respuesta
+  pendientes.add({
+    'formularioId': formularioId,
+    'usuarioId': usuarioId,
+    'fecha': DateTime.now().toIso8601String(),
+    'respuestas': respuestas,
+    'archivos': archivos,
+  });
+  
+  // Guardar
+  await prefs.setString('respuestas_pendientes', jsonEncode(pendientes));
+}
+
+// ============================================================
+// SEMANA 9: SINCRONIZAR RESPUESTAS PENDIENTES
+// ============================================================
+static Future<int> sincronizarRespuestasPendientes() async {
+  final prefs = await SharedPreferences.getInstance();
+  final pendientesStr = prefs.getString('respuestas_pendientes');
+  
+  if (pendientesStr == null) return 0;
+  
+  final pendientes = jsonDecode(pendientesStr);
+  int sincronizadas = 0;
+  
+  for (var respuesta in pendientes) {
+    try {
+      // Intentar enviar al servidor
+      final success = await guardarRespuestasConEvidencias(
+        formularioId: respuesta['formularioId'],
+        usuarioId: respuesta['usuarioId'],
+        latitud: 0.0,
+        longitud: 0.0,
+        respuestas: List<Map<String, dynamic>>.from(respuesta['respuestas']),
+        archivos: List<Map<String, dynamic>>.from(respuesta['archivos']),
+      );
+      
+      if (success) {
+        sincronizadas++;
+      }
+    } catch (e) {
+      print('Error sincronizando: $e');
+    }
+  }
+  
+  // Limpiar pendientes sincronizadas
+  if (sincronizadas > 0) {
+    await prefs.remove('respuestas_pendientes');
+  }
+  
+  return sincronizadas;
+}
+
+// ============================================================
+// SEMANA 9: VERIFICAR CONEXIÓN A INTERNET
+// ============================================================
+// ============================================================
+// SEMANA 9: VERIFICAR CONEXIÓN A INTERNET (CORREGIDO)
+// ============================================================
+static Future<bool> hasInternet() async {
+  try {
+    final client = http.Client();
+    try {
+      final response = await client
+          .get(Uri.parse('https://www.google.com'))
+          .timeout(const Duration(seconds: 5));
+      return response.statusCode == 200;
+    } finally {
+      client.close();
+    }
+  } catch (_) {
+    return false;
+  }
+}
   static Future<Map<String, dynamic>?> getUser() async {
     final prefs = await SharedPreferences.getInstance();
     final String? userStr = prefs.getString('user_data');
