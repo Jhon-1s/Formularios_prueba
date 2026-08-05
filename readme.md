@@ -29,9 +29,9 @@ A continuación, se detalla el plan maestro de desarrollo estructurado en fases 
 | **Fase 3: Captura de Evidencias** | **S8** | 25 Jun 2026 | Endpoints de consulta histórica y filtros. | Integración de cámara en app móvil. | **App Flutter Funcional (Fase 1):** App captura fotos y las envía al backend. | **🟢 Finalizado** |
 | | **S9** | 02 Jul 2026 | Pruebas de estrés y auditoría de seguridad JWT. | Implementación de firma táctil (Signature Pad). | App captura firma y envía encuestas completas. | **🟢 Finalizado** |
 | | **S10** | 09 Jul 2026 | Documentación técnica de API (Swagger/Postman). | Integración GPS en Flutter (coordenadas). | **Motor Móvil & Evidencias:** Respuestas con fotos, firma y GPS en BD. | **🟢 Finalizado** |
-| **Fase 4: Reportes y Cierre** | **S11** | 16 Jul 2026 | Optimización del servicio de PDF y corrección de bugs. | Pruebas de rendimiento en baja conectividad. | **Servicio de PDF:** PDF generado automáticamente con branding. | ⏳ Sin Iniciar |
-| | **S12** | 23 Jul 2026 | API de reportería completa (filtros, históricos). | Optimización de app móvil (caché, fluidez). | **API Reportería:** Endpoints listos para frontend web. | ⏳ Sin Iniciar |
-| | **S13** | 30 Jul 2026 | Pruebas E2E (backend ↔ app) y estabilización. | Pruebas de compatibilidad (resoluciones, Android/iOS). | **Sistema Integrado:** Sistema congelado y estable. | ⏳ Sin Iniciar |
+| **Fase 4: Reportes y Cierre** | **S11** | 16 Jul 2026 | Optimización del servicio de PDF y corrección de bugs. | Pruebas de rendimiento en baja conectividad. | **Servicio de PDF:** PDF generado automáticamente con branding. | **🟢 Finalizado** |
+| | **S12** | 23 Jul 2026 | API de reportería completa (filtros, históricos). | Optimización de app móvil (caché, fluidez). | **API Reportería:** Endpoints listos para frontend web. | **🟢 Finalizado** |
+| | **S13** | 30 Jul 2026 | Pruebas E2E (backend ↔ app) y estabilización. | Pruebas de compatibilidad (resoluciones, Android/iOS). | **Sistema Integrado:** Sistema congelado y estable. | **🟢 Finalizado** |
 | | **S14** | 06 Ago 2026 | Documentación final de API (Swagger/Postman). | Redacción manual de usuario app. | **Doc. Técnica:** Documentación API + manual de usuario. | ⏳ Sin Iniciar |
 | | **S15** | 13 Ago 2026 | Preparación del backend y scripts de BD para entrega. | Empaquetado final .apk y código móvil listo. | **Manual de Usuario y Código Fuente:** Entrega final del ecosistema completo. | ⏳ Sin Iniciar |
 
