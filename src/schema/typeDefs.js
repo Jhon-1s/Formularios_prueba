@@ -52,10 +52,10 @@ const typeDefs = gql`
     encabezado_id: ID
   }
 
-  # === TIPOS DEL MOTOR DINÁMICO Y GPS (Semana 6) ===
+  # === TIPOS DEL MOTOR DINÁMICO Y GPS ===
   type CampoConfig {
     id: ID!
-    tipo: String!         
+    tipo: String!        
     etiqueta: String!     
     requerido: Boolean!
     orden: Int!
@@ -78,7 +78,7 @@ const typeDefs = gql`
     valor: String          
   }
 
-  # === MÓDULO DE REPORTES (Semana 7) ===
+  # === MÓDULO DE REPORTES / HISTORIAL ===
   type InspeccionReporte {
     id: ID!
     formularioId: ID!
@@ -91,7 +91,7 @@ const typeDefs = gql`
     respuestas: [RespuestaCampo!]!
   }
 
-  # === NUEVO TIPO: ESTADÍSTICAS DEL DASHBOARD (Semana 10) ===
+  # === ESTADÍSTICAS DEL DASHBOARD ===
   type FormularioEstadistica {
     activos: Int!
     inactivos: Int!
@@ -106,18 +106,24 @@ const typeDefs = gql`
     getEmpresa(id: ID!): Empresa
     getFormulariosDisponibles: [FormularioDisponible!]!
     getCamposPorSeccion(seccion_id: ID!): [CampoSeccion!]!
-    getFormularioPorId(id: ID!, empresaId: ID!): FormularioEstructura!
-    getInspeccionesPorEmpresa(empresaId: ID!): [InspeccionReporte!]!
     
-    # NUEVAS QUERIES SEMANA 10
-    totalInspeccionesPorEmpresa(empresaId: ID!): Int!
-    obtenerResumenEstatusFormularios(empresaId: ID!): FormularioEstadistica!
+    # Se hace empresaId opcional (ID) para evitar errores si la app móvil solo envía id
+    getFormularioPorId(id: ID!, empresaId: ID): FormularioEstructura!
+    getInspeccionesPorEmpresa(empresaId: ID): [InspeccionReporte!]!
+    
+    # HISTORIAL MÓVIL
+    getHistorialRespuestas: [InspeccionReporte!]!
+
+    # QUERIES DASHBOARD
+    totalInspeccionesPorEmpresa(empresaId: ID): Int!
+    obtenerResumenEstatusFormularios(empresaId: ID): FormularioEstadistica!
   }
 
   # === MUTATIONS UNIFICADAS ===
   type Mutation {
     login(email: String!, password: String!): AuthPayload!
     crearEmpresa(nombre: String!, logo_url: String): Empresa!
+    
     guardarRespuestaMovil(
       formulario_id: ID!,
       usuario_email: String!,
@@ -125,16 +131,17 @@ const typeDefs = gql`
       respuestas: [RespuestaMovilInput!]!
     ): MutacionMovilResponse!
 
-    # Registro de Respuestas + GPS S6
+    # Registro de Respuestas + GPS + Archivos (Compatibilidad con la App Móvil)
     guardarRespuestasFormulario(
-      formularioId: ID!,
-      usuarioId: ID!,
-      respuestas: [RespuestaCampoInput!]!,
-      gps: UbicacionGPSInput!
+      formularioId: ID!
+      usuarioId: ID!
+      respuestas: [RespuestaInput!]!
+      gps: GPSInput
+      archivos: [ArchivoInput]
     ): Boolean!
   }
 
-  # === INPUTS ===
+  # === INPUTS QUE SOLICITA LA APP MÓVIL ===
   input RespuestaMovilInput {
     pregunta_id: ID!
     valor_texto: String
@@ -147,9 +154,26 @@ const typeDefs = gql`
     longitud: Float!
   }
 
+  input GPSInput {
+    latitud: Float
+    longitud: Float
+  }
+
   input RespuestaCampoInput {
     campoId: ID!
     valor: String
+  }
+
+  input RespuestaInput {
+    campoId: ID!
+    valor: String
+  }
+
+  input ArchivoInput {
+    campoId: ID
+    nombre: String
+    uri: String
+    tipo: String
   }
 `;
 
