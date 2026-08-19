@@ -12,8 +12,12 @@ class HistorialScreen extends StatefulWidget {
 
 class _HistorialScreenState extends State<HistorialScreen> {
   List<Respuesta> _respuestas = [];
+  List<Respuesta> _respuestasFiltradas = [];
   bool _isLoading = true;
-  String _filtro = '';
+  String _filtroEstado = 'todos';
+  DateTime? _fechaInicio;
+  DateTime? _fechaFin;
+  String _busqueda = '';
 
   @override
   void initState() {
@@ -21,30 +25,95 @@ class _HistorialScreenState extends State<HistorialScreen> {
     _cargarHistorial();
   }
 
+  // ============================================================
+  // CARGAR HISTORIAL (VERSIÓN SIMPLIFICADA)
+  // ============================================================
   Future<void> _cargarHistorial() async {
     setState(() => _isLoading = true);
-    final data = await AuthService.getHistorialRespuestas();
-    setState(() {
-      _respuestas = data.map((r) => Respuesta.fromJson(r)).toList();
-      _isLoading = false;
-    });
+    
+    try {
+      // ✅ Obtener todas las respuestas
+      final data = await AuthService.getHistorialRespuestas();
+      print('🔍 Datos historial: ${data.length} registros');
+      
+      // ✅ Para cada respuesta, obtener sus detalles
+      List<Respuesta> respuestasCompletas = [];
+      
+      for (var item in data) {
+        try {
+          final respuestaId = item['id']?.toString() ?? '';
+          print('🔍 Cargando detalles para respuesta: $respuestaId');
+          
+          // ✅ Obtener detalles de la respuesta
+          final detallesData = await AuthService.getDetalleRespuesta(respuestaId);
+          print('🔍 Detalles recibidos: ${detallesData.keys}');
+          
+          // ✅ Combinar encabezado + detalles
+          final respuestaCompleta = {
+            ...item,
+            'detalles': detallesData['detalles'] ?? [],
+          };
+          
+          final respuesta = Respuesta.fromJson(respuestaCompleta);
+          print('✅ Respuesta cargada con ${respuesta.totalDetalles} detalles');
+          respuestasCompletas.add(respuesta);
+          
+        } catch (e) {
+          print('❌ Error cargando detalle: $e');
+          // Si falla, agregar solo el encabezado
+          respuestasCompletas.add(Respuesta.fromJson(item));
+        }
+      }
+      
+      setState(() {
+        _respuestas = respuestasCompletas;
+        _aplicarFiltros();
+        _isLoading = false;
+      });
+      
+    } catch (e) {
+      print('❌ Error cargando historial: $e');
+      setState(() {
+        _respuestas = [];
+        _respuestasFiltradas = [];
+        _isLoading = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error cargando historial: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
-  List<Respuesta> get _respuestasFiltradas {
-    if (_filtro.isEmpty) return _respuestas;
-    return _respuestas.where((r) {
-      final search = _filtro.toLowerCase();
-      return r.usuarioNombre?.toLowerCase().contains(search) == true ||
-          r.usuarioEmail?.toLowerCase().contains(search) == true ||
-          r.fechaFormateada.contains(search);
-    }).toList();
+  void _aplicarFiltros() {
+    setState(() {
+      _respuestasFiltradas = _respuestas.where((r) {
+        final estadoMatch = _filtroEstado == 'todos' || r.estado == _filtroEstado;
+        final busquedaMatch = _busqueda.isEmpty ||
+            (r.usuarioNombre?.toLowerCase().contains(_busqueda.toLowerCase()) ?? false) ||
+            (r.usuarioEmail?.toLowerCase().contains(_busqueda.toLowerCase()) ?? false);
+        bool fechaMatch = true;
+        if (_fechaInicio != null) {
+          fechaMatch = fechaMatch && r.fechaCompletado.isAfter(_fechaInicio!);
+        }
+        if (_fechaFin != null) {
+          fechaMatch = fechaMatch && r.fechaCompletado.isBefore(_fechaFin!);
+        }
+        return estadoMatch && busquedaMatch && fechaMatch;
+      }).toList();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historial'),
+        title: const Text('📋 Historial'),
         backgroundColor: const Color(0xFF3498db),
         foregroundColor: Colors.white,
         actions: [
@@ -56,23 +125,80 @@ class _HistorialScreenState extends State<HistorialScreen> {
       ),
       body: Column(
         children: [
-          // Barra de búsqueda
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: '🔍 Buscar...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+          // Filtros
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: Colors.grey.shade50,
+            child: Column(
+              children: [
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: '🔍 Buscar por usuario...',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onChanged: (value) {
+                    _busqueda = value;
+                    _aplicarFiltros();
+                  },
                 ),
-                filled: true,
-                fillColor: Colors.grey.shade50,
-              ),
-              onChanged: (value) => setState(() => _filtro = value),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _filtroEstado,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'todos', child: Text('📊 Todos')),
+                          DropdownMenuItem(value: 'completado', child: Text('✅ Completados')),
+                          DropdownMenuItem(value: 'en_proceso', child: Text('⏳ En proceso')),
+                        ],
+                        onChanged: (value) {
+                          _filtroEstado = value!;
+                          _aplicarFiltros();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        Icons.calendar_today,
+                        color: _fechaInicio != null || _fechaFin != null
+                            ? Colors.blue
+                            : Colors.grey,
+                      ),
+                      onPressed: _seleccionarFechas,
+                    ),
+                    if (_fechaInicio != null || _fechaFin != null)
+                      IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.red),
+                        onPressed: () {
+                          _fechaInicio = null;
+                          _fechaFin = null;
+                          _aplicarFiltros();
+                        },
+                      ),
+                  ],
+                ),
+              ],
             ),
           ),
-          // Contenido
+          // Lista
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -84,77 +210,140 @@ class _HistorialScreenState extends State<HistorialScreen> {
                             Icon(Icons.history, size: 80, color: Colors.grey[400]),
                             const SizedBox(height: 16),
                             Text(
-                              'No hay respuestas registradas',
+                              _respuestas.isEmpty
+                                  ? 'No hay respuestas en el historial'
+                                  : 'No hay respuestas con estos filtros',
                               style: TextStyle(color: Colors.grey[600]),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: _cargarHistorial,
+                              child: const Text('Recargar'),
                             ),
                           ],
                         ),
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _respuestasFiltradas.length,
-                        itemBuilder: (context, index) {
-                          final respuesta = _respuestasFiltradas[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.blue.shade100,
-                                child: Text(
-                                  respuesta.usuarioNombre?.substring(0, 1).toUpperCase() ?? '?',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              title: Text(
-                                respuesta.usuarioNombre ?? 'Anónimo',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(respuesta.fechaFormateada),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Chip(
-                                        label: Text(respuesta.estado),
-                                        backgroundColor: respuesta.estado == 'completado'
-                                            ? Colors.green.shade100
-                                            : Colors.orange.shade100,
-                                        labelStyle: TextStyle(
-                                          fontSize: 10,
-                                          color: respuesta.estado == 'completado'
-                                              ? Colors.green.shade800
-                                              : Colors.orange.shade800,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        '⏱️ ${respuesta.tiempoFormateado}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => DetalleRespuestaScreen(
-                                      respuestaId: respuesta.id,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        },
+                    : RefreshIndicator(
+                        onRefresh: _cargarHistorial,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(12),
+                          itemCount: _respuestasFiltradas.length,
+                          itemBuilder: (context, index) {
+                            final respuesta = _respuestasFiltradas[index];
+                            return _buildCard(respuesta);
+                          },
+                        ),
                       ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildCard(Respuesta respuesta) {
+    final totalRespuestas = respuesta.totalDetalles;
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Colors.blue.shade100,
+          child: Text(
+            respuesta.usuarioNombre?.substring(0, 1).toUpperCase() ?? '?',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        title: Text(
+          respuesta.usuarioNombre ?? 'Anónimo',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(respuesta.fechaFormateada),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Chip(
+                  label: Text(respuesta.estado),
+                  backgroundColor: respuesta.estado == 'completado'
+                      ? Colors.green.shade100
+                      : Colors.orange.shade100,
+                  labelStyle: TextStyle(
+                    fontSize: 10,
+                    color: respuesta.estado == 'completado'
+                        ? Colors.green.shade800
+                        : Colors.orange.shade800,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '⏱️ ${respuesta.tiempoFormateado}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: totalRespuestas > 0 ? Colors.green.shade50 : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    totalRespuestas > 0 
+                        ? '$totalRespuestas respuestas' 
+                        : 'Sin respuestas',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: totalRespuestas > 0 ? Colors.green : Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DetalleRespuestaScreen(
+                respuestaId: respuesta.id,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _seleccionarFechas() async {
+    final now = DateTime.now();
+    final inicio = await showDatePicker(
+      context: context,
+      initialDate: _fechaInicio ?? now.subtract(const Duration(days: 30)),
+      firstDate: DateTime(2020),
+      lastDate: now,
+      locale: const Locale('es', 'MX'),
+    );
+
+    if (inicio == null) return;
+
+    final fin = await showDatePicker(
+      context: context,
+      initialDate: _fechaFin ?? now,
+      firstDate: inicio,
+      lastDate: now,
+      locale: const Locale('es', 'MX'),
+    );
+
+    if (fin == null) return;
+
+    setState(() {
+      _fechaInicio = inicio;
+      _fechaFin = fin;
+      _aplicarFiltros();
+    });
   }
 }

@@ -1,7 +1,7 @@
 class ReglaCondicional {
   final int id;
-  final int preguntaOrigenId;
-  final int preguntaDestinoId;
+  final String preguntaOrigenId;
+  final String preguntaDestinoId;
   final String condicionOperador;
   final String? valorEsperado;
   final String accion;
@@ -20,12 +20,8 @@ class ReglaCondicional {
   factory ReglaCondicional.fromJson(Map<String, dynamic> json) {
     return ReglaCondicional(
       id: json['id'] is String ? int.parse(json['id']) : json['id'],
-      preguntaOrigenId: json['preguntaOrigenId'] is String 
-          ? int.parse(json['preguntaOrigenId']) 
-          : json['preguntaOrigenId'],
-      preguntaDestinoId: json['preguntaDestinoId'] is String 
-          ? int.parse(json['preguntaDestinoId']) 
-          : json['preguntaDestinoId'],
+      preguntaOrigenId: json['preguntaOrigenId']?.toString() ?? '',
+      preguntaDestinoId: json['preguntaDestinoId']?.toString() ?? '',
       condicionOperador: json['condicionOperador'] ?? 'igual',
       valorEsperado: json['valorEsperado'],
       accion: json['accion'] ?? 'mostrar',
@@ -39,7 +35,7 @@ class ReglaCondicional {
     final valorStr = valor?.toString().toLowerCase() ?? '';
     final esperadoStr = valorEsperado?.toLowerCase() ?? '';
 
-    switch (condicionOperador) {
+    switch (condicionOperador.toLowerCase()) {
       case 'igual':
         return valorStr == esperadoStr;
       case 'diferente':

@@ -1,206 +1,135 @@
 import 'dart:io';
+import 'dart:convert';
+import 'dart:html' as html;  // ✅ IMPORTANTE: Para web
 import 'package:path_provider/path_provider.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:http/http.dart' as http;
-import '../models/respuesta_model.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class PdfService {
+  static const String apiUrl = 'https://presoak-edge-chance.ngrok-free.dev/graphql';
+
   // ============================================================
-  // GENERAR PDF DEL FORMULARIO
+  // VERIFICAR SI EL PDF YA EXISTE LOCALMENTE
   // ============================================================
-  static Future<File> generarPdf({
-    required String tituloFormulario,
-    required String empresaNombre,
-    required String logoUrl,
-    required Respuesta respuesta,
-    required List<Map<String, dynamic>> preguntas,
-  }) async {
-    final pdf = pw.Document();
-
-    pdf.addPage(
-      pw.MultiPage(
-        build: (pw.Context context) {
-          return [
-            // HEADER
-            pw.Container(
-              padding: const pw.EdgeInsets.all(16),
-              color: PdfColors.blue50,
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        empresaNombre,
-                        style: pw.TextStyle(
-                          fontSize: 18,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.blue900,
-                        ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        tituloFormulario,
-                        style: const pw.TextStyle(
-                          fontSize: 14,
-                          color: PdfColors.blue700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (logoUrl.isNotEmpty)
-                    pw.Image(
-                      pw.MemoryImage(
-                        await _descargarLogo(logoUrl),
-                      ),
-                      width: 60,
-                      height: 60,
-                    ),
-                ],
-              ),
-            ),
-
-            // INFO GENERAL
-            pw.SizedBox(height: 16),
-            pw.Container(
-              padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: PdfColors.grey300),
-                borderRadius: pw.BorderRadius.circular(8),
-              ),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    '📋 Información General',
-                    style: pw.TextStyle(
-                      fontSize: 16,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                  pw.SizedBox(height: 8),
-                  pw.Row(
-                    children: [
-                      pw.Expanded(
-                        child: pw.Text('👤 Usuario: ${respuesta.usuarioNombre ?? 'N/A'}'),
-                      ),
-                      pw.Expanded(
-                        child: pw.Text('📧 Email: ${respuesta.usuarioEmail ?? 'N/A'}'),
-                      ),
-                    ],
-                  ),
-                  pw.Row(
-                    children: [
-                      pw.Expanded(
-                        child: pw.Text('📅 Fecha: ${respuesta.fechaFormateada}'),
-                      ),
-                      pw.Expanded(
-                        child: pw.Text('⏱️ Tiempo: ${respuesta.tiempoFormateado}'),
-                      ),
-                    ],
-                  ),
-                  if (respuesta.latitud != null)
-                    pw.Text('📍 Ubicación: ${respuesta.latitud}, ${respuesta.longitud}'),
-                ],
-              ),
-            ),
-
-            // RESPUESTAS
-            pw.SizedBox(height: 16),
-            pw.Text(
-              '📝 Respuestas',
-              style: pw.TextStyle(
-                fontSize: 16,
-                fontWeight: pw.FontWeight.bold,
-              ),
-            ),
-            pw.SizedBox(height: 8),
-            ...preguntas.map((pregunta) {
-              final detalle = respuesta.detalles?.firstWhere(
-                (d) => d.preguntaId == pregunta['id'],
-                orElse: () => RespuestaDetalle(
-                  preguntaId: pregunta['id'],
-                  valorTexto: 'Sin respuesta',
-                ),
-              );
-              return pw.Container(
-                padding: const pw.EdgeInsets.all(8),
-                margin: const pw.EdgeInsets.only(bottom: 4),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey200),
-                  borderRadius: pw.BorderRadius.circular(4),
-                ),
-                child: pw.Row(
-                  children: [
-                    pw.Expanded(
-                      flex: 2,
-                      child: pw.Text(
-                        pregunta['etiqueta'] ?? '',
-                        style: const pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                    pw.Expanded(
-                      flex: 1,
-                      child: pw.Text(
-                        detalle?.valorMostrado ?? 'Sin respuesta',
-                        style: const pw.TextStyle(fontSize: 11),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-
-            // FOOTER
-            pw.SizedBox(height: 16),
-            pw.Container(
-              padding: const pw.EdgeInsets.all(12),
-              color: PdfColors.grey100,
-              child: pw.Center(
-                child: pw.Text(
-                  'Documento generado automáticamente por FormBuilder',
-                  style: pw.TextStyle(
-                    fontSize: 10,
-                    color: PdfColors.grey600,
-                  ),
-                ),
-              ),
-            ),
-          ];
-        },
-      ),
-    );
-
-    // Guardar PDF en archivo temporal
-    final output = await getTemporaryDirectory();
-    final file = File('${output.path}/reporte_${DateTime.now().millisecondsSinceEpoch}.pdf');
-    await file.writeAsBytes(await pdf.save());
-    return file;
+  static Future<bool> pdfExisteLocal(String respuestaId) async {
+    try {
+      if (kIsWeb) {
+        return false;
+      }
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/reporte_$respuestaId.pdf';
+      final file = File(filePath);
+      return await file.exists();
+    } catch (e) {
+      print('❌ Error verificando PDF: $e');
+      return false;
+    }
   }
 
   // ============================================================
-  // DESCARGAR LOGO
+  // GENERAR Y DESCARGAR PDF
   // ============================================================
-  static Future<List<int>> _descargarLogo(String url) async {
+  static Future<String> generarYDescargarPDF({
+    required String respuestaId,
+    required int empresaId,
+  }) async {
     try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        return response.bodyBytes;
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        throw Exception('No hay sesión activa');
+      }
+
+      const String mutation = '''
+        mutation GenerarPDF(\$respuestaId: ID!, \$empresaId: Int!) {
+          generarPDF(respuestaId: \$respuestaId, empresaId: \$empresaId) {
+            success
+            url
+            mensaje
+          }
+        }
+      ''';
+
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'query': mutation,
+          'variables': {
+            'respuestaId': respuestaId,
+            'empresaId': empresaId,
+          },
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Error al generar PDF');
+      }
+
+      final data = jsonDecode(response.body);
+      if (data['data'] == null || data['data']['generarPDF'] == null) {
+        throw Exception('Error en el servidor');
+      }
+
+      final pdfData = data['data']['generarPDF'];
+      if (pdfData['success'] != true) {
+        throw Exception(pdfData['mensaje'] ?? 'Error desconocido');
+      }
+
+      final pdfUrl = pdfData['url'];
+      final fullUrl = pdfUrl.startsWith('http')
+          ? pdfUrl
+          : 'https://presoak-edge-chance.ngrok-free.dev$pdfUrl';
+
+      final pdfResponse = await http.get(Uri.parse(fullUrl));
+
+      if (pdfResponse.statusCode != 200) {
+        throw Exception('Error al descargar PDF');
+      }
+
+      // ✅ GUARDAR EN WEB O MÓVIL
+      if (kIsWeb) {
+        // En web, descargar directamente con anchor
+        final blob = html.Blob([pdfResponse.bodyBytes]);
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        final anchor = html.AnchorElement(href: url)
+          ..setAttribute('download', 'reporte_$respuestaId.pdf')
+          ..click();
+        html.Url.revokeObjectUrl(url);
+        return 'PDF descargado en el navegador';
+      } else {
+        // En móvil, guardar localmente
+        final directory = await getApplicationDocumentsDirectory();
+        final filePath = '${directory.path}/reporte_$respuestaId.pdf';
+        final file = File(filePath);
+        await file.writeAsBytes(pdfResponse.bodyBytes);
+        return filePath;
       }
     } catch (e) {
-      print('Error descargando logo: $e');
+      print('❌ Error generando PDF: $e');
+      rethrow;
     }
-    // Logo por defecto
-    return _defaultLogo();
   }
 
-  static List<int> _defaultLogo() {
-    final pdf = pw.Document();
-    return pdf.save();
+  // ============================================================
+  // ELIMINAR PDF LOCAL
+  // ============================================================
+  static Future<void> eliminarPDFLocal(String respuestaId) async {
+    try {
+      if (kIsWeb) return;
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/reporte_$respuestaId.pdf';
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      print('❌ Error eliminando PDF: $e');
+    }
   }
 }

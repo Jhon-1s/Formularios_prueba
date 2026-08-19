@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 class Pregunta {
-  final int id;
+  final String id;
   final String tipoCampo;
   final String etiqueta;
   final String? ayuda;
@@ -30,6 +30,9 @@ class Pregunta {
   });
 
   factory Pregunta.fromJson(Map<String, dynamic> json) {
+    print('🔍 Pregunta.fromJson: ${json.keys}');
+    print('🔍 json: $json');
+    
     List<String>? opcionesList;
     if (json['config'] != null && json['config']['opciones'] != null) {
       final opciones = json['config']['opciones'];
@@ -46,13 +49,15 @@ class Pregunta {
     }
 
     return Pregunta(
-      id: json['id'] is String ? int.parse(json['id']) : json['id'],
-      tipoCampo: json['tipo_campo'] ?? 'texto',
+      id: json['id']?.toString() ?? '',
+      // ✅ Ahora soporta 'tipo' (backend) y 'tipo_campo'
+      tipoCampo: json['tipo'] ?? json['tipo_campo'] ?? 'texto',
       etiqueta: json['etiqueta'] ?? '',
       ayuda: json['ayuda'],
       placeholder: json['placeholder'],
       orden: json['orden'] ?? 0,
-      obligatorio: json['obligatorio'] ?? false,
+      // ✅ Ahora soporta 'requerido' (backend) y 'obligatorio'
+      obligatorio: json['requerido'] ?? json['obligatorio'] ?? false,
       visible: json['visible'] ?? true,
       editable: json['editable'] ?? true,
       config: json['config'] != null ? Map<String, dynamic>.from(json['config']) : null,

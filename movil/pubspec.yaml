@@ -9,22 +9,29 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  flutter_localizations:
+    sdk: flutter
+
   cupertino_icons: ^1.0.6
   
   # Dependencias del proyecto
   http: ^1.1.0
   shared_preferences: ^2.2.2
-  image: ^4.0.0             # NUEVO - Para comprimir imágenes
-  path_provider: ^2.1.0     # Ya existe
-  connectivity_plus: ^5.0.2 # NUEVO - Verificar internet
+  image: ^4.0.0
+  path_provider: ^2.1.0
+  connectivity_plus: ^5.0.2
   geolocator: ^10.1.0
   image_picker: ^1.0.4
   signature: ^5.4.0
-  intl: ^0.18.1
+  open_file: ^3.3.2
+  provider: ^6.0.5
+  intl: ^0.19.0   # ✅ ACTUALIZADO
+  permission_handler: ^11.0.1
 
 dev_dependencies:
   flutter_test:
-    sdk: flutter
+    sdk: flutter 
   flutter_lints: ^3.0.0
 
 flutter:
