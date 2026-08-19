@@ -44,6 +44,9 @@ const typeDefs = gql`
     editable: Boolean!
     config: String
     reglas_validacion: String
+    # === REGLAS CONDICIONALES AÑADIDAS ===
+    dependeDeCampoId: ID
+    mostrarSiValorIgualA: String
   }
 
   type MutacionMovilResponse {
@@ -52,13 +55,23 @@ const typeDefs = gql`
     encabezado_id: ID
   }
 
-  # === TIPOS DEL MOTOR DINÁMICO Y GPS (Semana 6) ===
+  type PDFResponse {
+    success: Boolean!
+    url: String
+    mensaje: String
+  }
+
+  # === TIPOS DEL MOTOR DINÁMICO Y GPS ===
   type CampoConfig {
     id: ID!
-    tipo: String!         
+    tipo: String!        
     etiqueta: String!     
     requerido: Boolean!
     orden: Int!
+    opciones: String
+    # === REGLAS CONDICIONALES AÑADIDAS ===
+    dependeDeCampoId: ID
+    mostrarSiValorIgualA: String
   }
 
   type FormularioEstructura {
@@ -75,27 +88,41 @@ const typeDefs = gql`
 
   type RespuestaCampo {
     campoId: ID!
+    pregunta: String
     valor: String          
   }
 
-  # === MÓDULO DE REPORTES (Semana 7) ===
+  # === MÓDULO DE REPORTES / HISTORIAL ===
   type InspeccionReporte {
     id: ID!
-    formularioId: ID!
+    formularioId: ID
     tituloFormulario: String
-    usuarioId: ID!
+    usuarioId: ID
     nombreUsuario: String
     fechaCreado: String
     latitud: Float
     longitud: Float
-    respuestas: [RespuestaCampo!]!
+    formulario_id: ID
+    formulario_titulo: String
+    usuario_nombre_completo: String
+    usuario_email: String
+    fecha_completado: String
+    estado: String
+    ubicacion_lat: Float
+    ubicacion_lng: Float
+    tiempo_respuesta_segundos: Int
+    pdf_generado: Boolean
+
+    respuestas: [RespuestaCampo!]
   }
 
-  # === NUEVO TIPO: ESTADÍSTICAS DEL DASHBOARD (Semana 10) ===
+  # === ESTADÍSTICAS DEL DASHBOARD ===
   type FormularioEstadistica {
     activos: Int!
     inactivos: Int!
     total: Int!
+    pendientes: Int
+    finalizados: Int
   }
 
   # === QUERIES UNIFICADAS ===
@@ -106,18 +133,24 @@ const typeDefs = gql`
     getEmpresa(id: ID!): Empresa
     getFormulariosDisponibles: [FormularioDisponible!]!
     getCamposPorSeccion(seccion_id: ID!): [CampoSeccion!]!
-    getFormularioPorId(id: ID!, empresaId: ID!): FormularioEstructura!
-    getInspeccionesPorEmpresa(empresaId: ID!): [InspeccionReporte!]!
     
-    # NUEVAS QUERIES SEMANA 10
-    totalInspeccionesPorEmpresa(empresaId: ID!): Int!
-    obtenerResumenEstatusFormularios(empresaId: ID!): FormularioEstadistica!
+    getFormularioPorId(id: ID!, empresaId: ID): FormularioEstructura!
+    getInspeccionesPorEmpresa(empresaId: ID): [InspeccionReporte!]!
+    
+    # HISTORIAL MÓVIL Y DETALLE
+    getHistorialRespuestas: [InspeccionReporte!]!
+    getDetalleRespuesta(id: ID!): InspeccionReporte
+
+    # QUERIES DASHBOARD
+    totalInspeccionesPorEmpresa(empresaId: ID): Int!
+    obtenerResumenEstatusFormularios(empresaId: ID): FormularioEstadistica!
   }
 
   # === MUTATIONS UNIFICADAS ===
   type Mutation {
     login(email: String!, password: String!): AuthPayload!
     crearEmpresa(nombre: String!, logo_url: String): Empresa!
+    
     guardarRespuestaMovil(
       formulario_id: ID!,
       usuario_email: String!,
@@ -125,16 +158,29 @@ const typeDefs = gql`
       respuestas: [RespuestaMovilInput!]!
     ): MutacionMovilResponse!
 
-    # Registro de Respuestas + GPS S6
     guardarRespuestasFormulario(
-      formularioId: ID!,
-      usuarioId: ID!,
-      respuestas: [RespuestaCampoInput!]!,
-      gps: UbicacionGPSInput!
+      formularioId: String!
+      usuarioId: String!
+      respuestas: [RespuestaInput!]!
+      gps: GPSInput
+      archivos: [ArchivoInput]
     ): Boolean!
+
+    crearFormularioConPreguntas(
+      titulo: String!
+      descripcion: String
+      empresaId: ID
+      preguntas: [PreguntaInput!]!
+    ): FormularioEstructura!
+
+    eliminarFormulario(id: ID!): Boolean!
+    cambiarEstadoFormulario(id: ID!, activo: Boolean!): Boolean!
+    
+    # Generar URL del PDF para reporte
+    generarPDF(respuestaId: ID!, empresaId: Int): PDFResponse!
   }
 
-  # === INPUTS ===
+  # === INPUTS DE LA APLICACIÓN ===
   input RespuestaMovilInput {
     pregunta_id: ID!
     valor_texto: String
@@ -147,10 +193,54 @@ const typeDefs = gql`
     longitud: Float!
   }
 
+  input GPSInput {
+    latitud: Float
+    longitud: Float
+  }
+
   input RespuestaCampoInput {
     campoId: ID!
     valor: String
   }
+
+  input RespuestaInput {
+    campoId: ID!
+    valor: String
+  }
+
+  input ArchivoInput {
+    campoId: ID
+    nombre: String
+    uri: String
+    tipo: String
+  }
+  
+  input PreguntaInput {
+    etiqueta: String!
+    tipo: String!
+    requerido: Boolean!
+    orden: Int!
+    opciones: String
+    # === REGLAS CONDICIONALES AÑADIDAS ===
+    dependeDeCampoId: ID
+    mostrarSiValorIgualA: String
+  }
+    input ReglaInput {
+  preguntaOrigenIndex: Int!
+  condicion: String!
+  valor: String!
+  accion: String!
+}
+
+input PreguntaInput {
+  id: String
+  etiqueta: String!
+  tipo: String!
+  requerido: Boolean!
+  orden: Int!
+  opciones: String
+  regla: ReglaInput
+}
 `;
 
 module.exports = typeDefs;
