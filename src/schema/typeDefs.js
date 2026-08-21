@@ -44,7 +44,6 @@ const typeDefs = gql`
     editable: Boolean!
     config: String
     reglas_validacion: String
-    # === REGLAS CONDICIONALES AÑADIDAS ===
     dependeDeCampoId: ID
     mostrarSiValorIgualA: String
   }
@@ -63,23 +62,26 @@ const typeDefs = gql`
 
   # === TIPOS DEL MOTOR DINÁMICO Y GPS ===
   type CampoConfig {
-    id: ID!
-    tipo: String!        
-    etiqueta: String!     
-    requerido: Boolean!
-    orden: Int!
-    opciones: String
-    # === REGLAS CONDICIONALES AÑADIDAS ===
-    dependeDeCampoId: ID
-    mostrarSiValorIgualA: String
-  }
+  id: ID!
+  tipo: String!        
+  etiqueta: String!     
+  requerido: Boolean!
+  orden: Int!
+  opciones: String
+  placeholder: String
+  ayuda: String
+  config: String
+  dependeDeCampoId: ID
+  mostrarSiValorIgualA: String
+ }
 
   type FormularioEstructura {
-    id: ID!
-    titulo: String!
-    empresaId: ID!        
-    campos: [CampoConfig!]! 
-  }
+  id: ID!
+  titulo: String!
+  descripcion: String
+  empresaId: ID!        
+  campos: [CampoConfig!]! 
+ }
 
   type UbicacionGPS {
     latitud: Float!
@@ -90,6 +92,24 @@ const typeDefs = gql`
     campoId: ID!
     pregunta: String
     valor: String          
+  }
+
+  type RespuestaDetalle {
+    pregunta_id: ID
+    valor_texto: String
+    valor_numero: Float
+    valor_fecha: String
+    valor_booleano: Boolean
+    pregunta_etiqueta: String
+    tipo_campo: String
+  }
+
+  type Regla {
+    id: ID
+    preguntaOrigenIndex: Int
+    condicion: String
+    valor: String
+    accion: String
   }
 
   # === MÓDULO DE REPORTES / HISTORIAL ===
@@ -114,6 +134,7 @@ const typeDefs = gql`
     pdf_generado: Boolean
 
     respuestas: [RespuestaCampo!]
+    detalles: [RespuestaDetalle!]
   }
 
   # === ESTADÍSTICAS DEL DASHBOARD ===
@@ -133,15 +154,11 @@ const typeDefs = gql`
     getEmpresa(id: ID!): Empresa
     getFormulariosDisponibles: [FormularioDisponible!]!
     getCamposPorSeccion(seccion_id: ID!): [CampoSeccion!]!
-    
     getFormularioPorId(id: ID!, empresaId: ID): FormularioEstructura!
     getInspeccionesPorEmpresa(empresaId: ID): [InspeccionReporte!]!
-    
-    # HISTORIAL MÓVIL Y DETALLE
     getHistorialRespuestas: [InspeccionReporte!]!
     getDetalleRespuesta(id: ID!): InspeccionReporte
-
-    # QUERIES DASHBOARD
+    getReglasFormulario(formulario_id: ID!): [Regla!]
     totalInspeccionesPorEmpresa(empresaId: ID): Int!
     obtenerResumenEstatusFormularios(empresaId: ID): FormularioEstadistica!
   }
@@ -149,12 +166,21 @@ const typeDefs = gql`
   # === MUTATIONS UNIFICADAS ===
   type Mutation {
     login(email: String!, password: String!): AuthPayload!
+    
+    registrarUsuario(
+      email: String!
+      password: String!
+      nombre: String!
+      empresaId: Int!
+      rol: String
+    ): AuthPayload!
+
     crearEmpresa(nombre: String!, logo_url: String): Empresa!
     
     guardarRespuestaMovil(
-      formulario_id: ID!,
-      usuario_email: String!,
-      usuario_nombre_completo: String!,
+      formulario_id: ID!
+      usuario_email: String!
+      usuario_nombre_completo: String!
       respuestas: [RespuestaMovilInput!]!
     ): MutacionMovilResponse!
 
@@ -175,8 +201,6 @@ const typeDefs = gql`
 
     eliminarFormulario(id: ID!): Boolean!
     cambiarEstadoFormulario(id: ID!, activo: Boolean!): Boolean!
-    
-    # Generar URL del PDF para reporte
     generarPDF(respuestaId: ID!, empresaId: Int): PDFResponse!
   }
 
@@ -215,32 +239,24 @@ const typeDefs = gql`
     tipo: String
   }
   
+  input ReglaInput {
+    preguntaOrigenIndex: Int!
+    condicion: String!
+    valor: String!
+    accion: String!
+  }
+
   input PreguntaInput {
+    id: String
     etiqueta: String!
     tipo: String!
     requerido: Boolean!
     orden: Int!
     opciones: String
-    # === REGLAS CONDICIONALES AÑADIDAS ===
     dependeDeCampoId: ID
     mostrarSiValorIgualA: String
+    regla: ReglaInput
   }
-    input ReglaInput {
-  preguntaOrigenIndex: Int!
-  condicion: String!
-  valor: String!
-  accion: String!
-}
-
-input PreguntaInput {
-  id: String
-  etiqueta: String!
-  tipo: String!
-  requerido: Boolean!
-  orden: Int!
-  opciones: String
-  regla: ReglaInput
-}
 `;
 
 module.exports = typeDefs;
