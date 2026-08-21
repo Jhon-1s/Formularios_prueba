@@ -51,163 +51,228 @@ class AuthService {
   }
 
   // ============================================================
-// SEMANA 8: GUARDAR RESPUESTAS CON FOTOS Y FIRMAS
-// ============================================================
-static Future<bool> guardarRespuestasConEvidencias({
-  required String formularioId,
-  required String usuarioId,
-  required double latitud,
-  required double longitud,
-  required List<Map<String, dynamic>> respuestas,
-  required List<Map<String, dynamic>> archivos, // NUEVO
-}) async {
-  const String mutation = '''
-    mutation GuardarInspeccionCompleta(
-      \$formularioId: String!
-      \$usuarioId: String!
-      \$gps: GPSInput!
-      \$respuestas: [RespuestaInput!]!
-      \$archivos: [ArchivoInput!]!
-    ) {
-      guardarRespuestasFormulario(
-        formularioId: \$formularioId
-        usuarioId: \$usuarioId
-        gps: \$gps
-        respuestas: \$respuestas
-        archivos: \$archivos
-      )
-    }
-  ''';
+  // SEMANA 8: GUARDAR RESPUESTAS CON FOTOS Y FIRMAS
+  // ============================================================
+  static Future<bool> guardarRespuestasConEvidencias({
+    required String formularioId,
+    required String usuarioId,
+    required double latitud,
+    required double longitud,
+    required List<Map<String, dynamic>> respuestas,
+    required List<Map<String, dynamic>> archivos,
+  }) async {
+    const String mutation = '''
+      mutation GuardarInspeccionCompleta(
+        \$formularioId: String!
+        \$usuarioId: String!
+        \$gps: GPSInput!
+        \$respuestas: [RespuestaInput!]!
+        \$archivos: [ArchivoInput!]!
+      ) {
+        guardarRespuestasFormulario(
+          formularioId: \$formularioId
+          usuarioId: \$usuarioId
+          gps: \$gps
+          respuestas: \$respuestas
+          archivos: \$archivos
+        )
+      }
+    ''';
 
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
 
-    final response = await http.post(
-      Uri.parse(apiUrl),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'query': mutation,
-        'variables': {
-          'formularioId': formularioId,
-          'usuarioId': usuarioId,
-          'gps': {
-            'latitud': latitud,
-            'longitud': longitud,
-          },
-          'respuestas': respuestas,
-          'archivos': archivos,
+      if (token == null) {
+        print('⚠️ No hay token, no se pueden guardar respuestas');
+        return false;
+      }
+
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
         },
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data['data'] != null && data['data']['guardarRespuestasFormulario'] != null) {
-        return data['data']['guardarRespuestasFormulario'] == true;
-      }
-    }
-    return false;
-  } catch (e) {
-    print('❌ Error al guardar: $e');
-    return false;
-  }
-}
-
-// ============================================================
-// SEMANA 9: GUARDAR RESPUESTAS OFFLINE
-// ============================================================
-static Future<void> guardarRespuestaOffline({
-  required String formularioId,
-  required String usuarioId,
-  required Map<String, dynamic> respuestas,
-  required List<Map<String, dynamic>> archivos,
-}) async {
-  final prefs = await SharedPreferences.getInstance();
-  
-  // Obtener respuestas pendientes existentes
-  final pendientesStr = prefs.getString('respuestas_pendientes');
-  List<dynamic> pendientes = pendientesStr != null 
-      ? jsonDecode(pendientesStr) 
-      : [];
-  
-  // Agregar nueva respuesta
-  pendientes.add({
-    'formularioId': formularioId,
-    'usuarioId': usuarioId,
-    'fecha': DateTime.now().toIso8601String(),
-    'respuestas': respuestas,
-    'archivos': archivos,
-  });
-  
-  // Guardar
-  await prefs.setString('respuestas_pendientes', jsonEncode(pendientes));
-}
-
-// ============================================================
-// SEMANA 9: SINCRONIZAR RESPUESTAS PENDIENTES
-// ============================================================
-static Future<int> sincronizarRespuestasPendientes() async {
-  final prefs = await SharedPreferences.getInstance();
-  final pendientesStr = prefs.getString('respuestas_pendientes');
-  
-  if (pendientesStr == null) return 0;
-  
-  final pendientes = jsonDecode(pendientesStr);
-  int sincronizadas = 0;
-  
-  for (var respuesta in pendientes) {
-    try {
-      // Intentar enviar al servidor
-      final success = await guardarRespuestasConEvidencias(
-        formularioId: respuesta['formularioId'],
-        usuarioId: respuesta['usuarioId'],
-        latitud: 0.0,
-        longitud: 0.0,
-        respuestas: List<Map<String, dynamic>>.from(respuesta['respuestas']),
-        archivos: List<Map<String, dynamic>>.from(respuesta['archivos']),
+        body: jsonEncode({
+          'query': mutation,
+          'variables': {
+            'formularioId': formularioId,
+            'usuarioId': usuarioId,
+            'gps': {
+              'latitud': latitud,
+              'longitud': longitud,
+            },
+            'respuestas': respuestas,
+            'archivos': archivos,
+          },
+        }),
       );
-      
-      if (success) {
-        sincronizadas++;
-      }
-    } catch (e) {
-      print('Error sincronizando: $e');
-    }
-  }
-  
-  // Limpiar pendientes sincronizadas
-  if (sincronizadas > 0) {
-    await prefs.remove('respuestas_pendientes');
-  }
-  
-  return sincronizadas;
-}
 
-// ============================================================
-// SEMANA 9: VERIFICAR CONEXIÓN A INTERNET
-// ============================================================
-// ============================================================
-// SEMANA 9: VERIFICAR CONEXIÓN A INTERNET (CORREGIDO)
-// ============================================================
-static Future<bool> hasInternet() async {
-  try {
-    final client = http.Client();
-    try {
-      final response = await client
-          .get(Uri.parse('https://www.google.com'))
-          .timeout(const Duration(seconds: 5));
-      return response.statusCode == 200;
-    } finally {
-      client.close();
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null && data['data']['guardarRespuestasFormulario'] != null) {
+          return data['data']['guardarRespuestasFormulario'] == true;
+        }
+      }
+      return false;
+    } catch (e) {
+      print('❌ Error al guardar: $e');
+      return false;
     }
-  } catch (_) {
-    return false;
   }
-}
+
+  // ============================================================
+  // SEMANA 10: OBTENER DETALLE DE RESPUESTA (CON UUID)
+  // ============================================================
+  static Future<Map<String, dynamic>> getDetalleRespuesta(String respuestaId) async {
+    try {
+      const String query = '''
+        query GetDetalleRespuesta(\$id: ID!) {
+          getDetalleRespuesta(id: \$id) {
+            id
+            formulario_id
+            formulario_titulo
+            usuario_nombre_completo
+            usuario_email
+            fecha_completado
+            estado
+            ubicacion_lat
+            ubicacion_lng
+            tiempo_respuesta_segundos
+            detalles {
+              pregunta_id
+              valor_texto
+              valor_numero
+              valor_fecha
+              valor_booleano
+              pregunta_etiqueta
+              tipo_campo
+            }
+          }
+        }
+      ''';
+
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print('⚠️ No hay token, no se puede obtener detalle');
+        return {};
+      }
+
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'query': query,
+          'variables': {'id': respuestaId},
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null && data['data']['getDetalleRespuesta'] != null) {
+          return data['data']['getDetalleRespuesta'];
+        }
+      }
+      return {};
+    } catch (e) {
+      print('❌ Error obteniendo detalle: $e');
+      return {};
+    }
+  }
+
+  // ============================================================
+  // SEMANA 9: GUARDAR RESPUESTAS OFFLINE
+  // ============================================================
+  static Future<void> guardarRespuestaOffline({
+    required String formularioId,
+    required String usuarioId,
+    required Map<String, dynamic> respuestas,
+    required List<Map<String, dynamic>> archivos,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    final pendientesStr = prefs.getString('respuestas_pendientes');
+    List<dynamic> pendientes = pendientesStr != null 
+        ? jsonDecode(pendientesStr) 
+        : [];
+    
+    pendientes.add({
+      'formularioId': formularioId,
+      'usuarioId': usuarioId,
+      'fecha': DateTime.now().toIso8601String(),
+      'respuestas': respuestas,
+      'archivos': archivos,
+    });
+    
+    await prefs.setString('respuestas_pendientes', jsonEncode(pendientes));
+  }
+
+  // ============================================================
+  // SEMANA 9: SINCRONIZAR RESPUESTAS PENDIENTES
+  // ============================================================
+  static Future<int> sincronizarRespuestasPendientes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final pendientesStr = prefs.getString('respuestas_pendientes');
+    
+    if (pendientesStr == null) return 0;
+    
+    final pendientes = jsonDecode(pendientesStr);
+    int sincronizadas = 0;
+    
+    for (var respuesta in pendientes) {
+      try {
+        final success = await guardarRespuestasConEvidencias(
+          formularioId: respuesta['formularioId'],
+          usuarioId: respuesta['usuarioId'],
+          latitud: 0.0,
+          longitud: 0.0,
+          respuestas: List<Map<String, dynamic>>.from(respuesta['respuestas']),
+          archivos: List<Map<String, dynamic>>.from(respuesta['archivos']),
+        );
+        
+        if (success) {
+          sincronizadas++;
+        }
+      } catch (e) {
+        print('Error sincronizando: $e');
+      }
+    }
+    
+    if (sincronizadas > 0) {
+      await prefs.remove('respuestas_pendientes');
+    }
+    
+    return sincronizadas;
+  }
+
+  // ============================================================
+  // SEMANA 9: VERIFICAR CONEXIÓN A INTERNET
+  // ============================================================
+  static Future<bool> hasInternet() async {
+    try {
+      final client = http.Client();
+      try {
+        final response = await client
+            .get(Uri.parse('https://www.google.com'))
+            .timeout(const Duration(seconds: 5));
+        return response.statusCode == 200;
+      } finally {
+        client.close();
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ============================================================
+  // USUARIO Y SESIÓN
+  // ============================================================
   static Future<Map<String, dynamic>?> getUser() async {
     final prefs = await SharedPreferences.getInstance();
     final String? userStr = prefs.getString('user_data');
@@ -223,36 +288,55 @@ static Future<bool> hasInternet() async {
   }
 
   // ============================================================
-  // FORMULARIOS DISPONIBLES
+  // FORMULARIOS DISPONIBLES (CON CACHÉ Y TOKEN)
   // ============================================================
   static Future<List<dynamic>> getFormulariosDisponibles() async {
-    const String query = '''
-      query {
-        getFormulariosDisponibles {
-          id
-          titulo
-          descripcion
-          estado
-        }
-      }
-    ''';
-
     try {
+      final cached = await getFormulariosLocal();
+      if (cached.isNotEmpty) {
+        return cached;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print('⚠️ No hay token, cargando desde caché');
+        return await getFormulariosLocal();
+      }
+
+      const String query = '''
+        query {
+          getFormulariosDisponibles {
+            id
+            titulo
+            descripcion
+            estado
+          }
+        }
+      ''';
+
       final response = await http.post(
         Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({'query': query}),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['data'] != null && data['data']['getFormulariosDisponibles'] != null) {
-          return data['data']['getFormulariosDisponibles'];
+          final formularios = data['data']['getFormulariosDisponibles'];
+          await saveFormulariosLocal(formularios);
+          return formularios;
         }
       }
-      return [];
+      return await getFormulariosLocal();
     } catch (e) {
-      return [];
+      print('❌ Error en getFormulariosDisponibles: $e');
+      return await getFormulariosLocal();
     }
   }
 
@@ -271,51 +355,136 @@ static Future<bool> hasInternet() async {
   }
 
   // ============================================================
-  // SEMANA 6: ESTRUCTURA DEL FORMULARIO
+  // SEMANA 6: ESTRUCTURA DEL FORMULARIO (CON TOKEN)
   // ============================================================
   static Future<Map<String, dynamic>> getEstructuraFormulario(String formularioId) async {
-    const String query = '''
-      query ObtenerFormulario(\$id: String!) {
-        getFormularioPorId(id: \$id, empresaId: "1") {
-          id
-          titulo
-          campos {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print('⚠️ No hay token, no se puede obtener estructura');
+        return {};
+      }
+
+      const String query = '''
+        query GetFormularioPorId(\$id: ID!) {
+          getFormularioPorId(id: \$id) {
             id
-            tipo
-            etiqueta
-            orden
-            requerido
+            titulo
+            empresaId
+            campos {
+              id
+              etiqueta
+              tipo
+              requerido
+              orden
+            }
           }
         }
-      }
-    ''';
+      ''';
 
-    try {
       final response = await http.post(
         Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'query': query,
           'variables': {'id': formularioId},
         }),
       );
 
+      print('🔍 Response status: ${response.statusCode}');
+      print('🔍 Response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['data'] != null && data['data']['getFormularioPorId'] != null) {
           return data['data']['getFormularioPorId'];
+        } else if (data['errors'] != null) {
+          print('❌ Error GraphQL: ${data['errors']}');
         }
+      } else {
+        print('❌ Error HTTP: ${response.statusCode}');
       }
       return {};
     } catch (e) {
+      print('❌ Error en getEstructuraFormulario: $e');
       return {};
     }
   }
 
   // ============================================================
-  // SEMANA 7: REGLAS CONDICIONALES
+  // SEMANA 12: OBTENER HISTORIAL COMPLETO (CON TOKEN)
   // ============================================================
-  static Future<List<Map<String, dynamic>>> getReglasFormulario(String formularioId) async {
+  static Future<List<Map<String, dynamic>>> getHistorialRespuestas() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print('⚠️ No hay token, no se puede obtener historial');
+        return [];
+      }
+
+      const String query = '''
+        query {
+          getHistorialRespuestas {
+            id
+            formulario_id
+            formulario_titulo
+            usuario_nombre_completo
+            usuario_email
+            fecha_completado
+            estado
+            ubicacion_lat
+            ubicacion_lng
+            tiempo_respuesta_segundos
+            pdf_generado
+          }
+        }
+      ''';
+
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'query': query}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null && data['data']['getHistorialRespuestas'] != null) {
+          return List<Map<String, dynamic>>.from(data['data']['getHistorialRespuestas']);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error obteniendo historial: $e');
+      return [];
+    }
+  }
+
+  // ============================================================
+  // SEMANA 7: REGLAS CONDICIONALES - RETORNA LISTA VACÍA (NO LLAMA AL BACKEND)
+  // ============================================================
+  // ============================================================
+// SEMANA 7: REGLAS CONDICIONALES
+// ============================================================
+static Future<List<Map<String, dynamic>>> getReglasFormulario(String formularioId) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token == null) {
+      print('⚠️ No hay token, no se pueden obtener reglas');
+      return [];
+    }
+
     const String query = '''
       query ObtenerReglas(\$id: String!) {
         getReglasFormulario(id: \$id) {
@@ -330,30 +499,40 @@ static Future<bool> hasInternet() async {
       }
     ''';
 
-    try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'query': query,
-          'variables': {'id': formularioId},
-        }),
-      );
+    final response = await http.post(
+      Uri.parse(apiUrl),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'query': query,
+        'variables': {'id': formularioId},
+      }),
+    );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['data'] != null && data['data']['getReglasFormulario'] != null) {
-          return List<Map<String, dynamic>>.from(data['data']['getReglasFormulario']);
-        }
+    print('📡 Reglas response status: ${response.statusCode}');
+    print('📡 Reglas response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['data'] != null && data['data']['getReglasFormulario'] != null) {
+        final reglas = List<Map<String, dynamic>>.from(data['data']['getReglasFormulario']);
+        print('✅ Reglas obtenidas: ${reglas.length}');
+        return reglas;
+      } else if (data['errors'] != null) {
+        print('❌ Error GraphQL: ${data['errors']}');
       }
-      return [];
-    } catch (e) {
-      return [];
     }
+    return [];
+  } catch (e) {
+    print('❌ Error en getReglasFormulario: $e');
+    return [];
   }
+}
 
   // ============================================================
-  // SEMANA 6: GUARDAR RESPUESTAS CON GPS
+  // SEMANA 6: GUARDAR RESPUESTAS CON GPS (CON TOKEN)
   // ============================================================
   static Future<bool> guardarRespuestasFormulario({
     required String formularioId,
@@ -362,26 +541,37 @@ static Future<bool> hasInternet() async {
     required double longitud,
     required List<Map<String, dynamic>> respuestas,
   }) async {
-    const String mutation = '''
-      mutation GuardarInspeccion(
-        \$formularioId: String!
-        \$usuarioId: String!
-        \$gps: GPSInput!
-        \$respuestas: [RespuestaInput!]!
-      ) {
-        guardarRespuestasFormulario(
-          formularioId: \$formularioId
-          usuarioId: \$usuarioId
-          gps: \$gps
-          respuestas: \$respuestas
-        )
-      }
-    ''';
-
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        print('⚠️ No hay token, no se pueden guardar respuestas');
+        return false;
+      }
+
+      const String mutation = '''
+        mutation GuardarInspeccion(
+          \$formularioId: String!
+          \$usuarioId: String!
+          \$gps: GPSInput!
+          \$respuestas: [RespuestaInput!]!
+        ) {
+          guardarRespuestasFormulario(
+            formularioId: \$formularioId
+            usuarioId: \$usuarioId
+            gps: \$gps
+            respuestas: \$respuestas
+          )
+        }
+      ''';
+
       final response = await http.post(
         Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
         body: jsonEncode({
           'query': mutation,
           'variables': {
@@ -404,6 +594,7 @@ static Future<bool> hasInternet() async {
       }
       return false;
     } catch (e) {
+      print('❌ Error en guardarRespuestasFormulario: $e');
       return false;
     }
   }

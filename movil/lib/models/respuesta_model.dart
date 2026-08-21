@@ -1,6 +1,7 @@
 class Respuesta {
-  final int id;
-  final int formularioId;
+  final String id;
+  final String formularioId;
+  final String? formularioTitulo;
   final String? usuarioNombre;
   final String? usuarioEmail;
   final DateTime fechaCompletado;
@@ -8,11 +9,13 @@ class Respuesta {
   final double? latitud;
   final double? longitud;
   final int? tiempoSegundos;
+  final bool? pdfGenerado;
   final List<RespuestaDetalle>? detalles;
 
   Respuesta({
     required this.id,
     required this.formularioId,
+    this.formularioTitulo,
     this.usuarioNombre,
     this.usuarioEmail,
     required this.fechaCompletado,
@@ -20,25 +23,44 @@ class Respuesta {
     this.latitud,
     this.longitud,
     this.tiempoSegundos,
+    this.pdfGenerado,
     this.detalles,
   });
 
   factory Respuesta.fromJson(Map<String, dynamic> json) {
+    final id = json['id']?.toString() ?? '';
+    
+    List<RespuestaDetalle>? detallesList;
+    if (json['detalles'] != null) {
+      try {
+        detallesList = (json['detalles'] as List)
+            .map((d) => RespuestaDetalle.fromJson(d))
+            .toList();
+      } catch (e) {
+        detallesList = [];
+      }
+    }
+
+    DateTime fecha;
+    try {
+      fecha = DateTime.parse(json['fecha_completado'] ?? json['created_at'] ?? DateTime.now().toIso8601String());
+    } catch (e) {
+      fecha = DateTime.now();
+    }
+
     return Respuesta(
-      id: json['id'] is String ? int.parse(json['id']) : json['id'],
-      formularioId: json['formulario_id'] is String 
-          ? int.parse(json['formulario_id']) 
-          : json['formulario_id'],
+      id: id,
+      formularioId: json['formulario_id']?.toString() ?? '',
+      formularioTitulo: json['formulario_titulo'],
       usuarioNombre: json['usuario_nombre_completo'],
       usuarioEmail: json['usuario_email'],
-      fechaCompletado: DateTime.parse(json['fecha_completado'] ?? json['created_at']),
-      estado: json['estado'] ?? 'completado',
+      fechaCompletado: fecha,
+      estado: json['estado']?.toString().toLowerCase() ?? 'completado',
       latitud: json['ubicacion_lat']?.toDouble(),
       longitud: json['ubicacion_lng']?.toDouble(),
       tiempoSegundos: json['tiempo_respuesta_segundos'],
-      detalles: json['detalles'] != null 
-          ? (json['detalles'] as List).map((d) => RespuestaDetalle.fromJson(d)).toList()
-          : null,
+      pdfGenerado: json['pdf_generado'] == true || json['pdf_generado'] == 1,
+      detalles: detallesList,
     );
   }
 
@@ -52,10 +74,13 @@ class Respuesta {
   String get fechaFormateada {
     return '${fechaCompletado.day.toString().padLeft(2, '0')}/${fechaCompletado.month.toString().padLeft(2, '0')}/${fechaCompletado.year} ${fechaCompletado.hour.toString().padLeft(2, '0')}:${fechaCompletado.minute.toString().padLeft(2, '0')}';
   }
+
+  bool get tieneDetalles => detalles != null && detalles!.isNotEmpty;
+  int get totalDetalles => detalles?.length ?? 0;
 }
 
 class RespuestaDetalle {
-  final int preguntaId;
+  final String preguntaId;
   final String? valorTexto;
   final double? valorNumero;
   final String? valorFecha;
@@ -75,9 +100,7 @@ class RespuestaDetalle {
 
   factory RespuestaDetalle.fromJson(Map<String, dynamic> json) {
     return RespuestaDetalle(
-      preguntaId: json['pregunta_id'] is String 
-          ? int.parse(json['pregunta_id']) 
-          : json['pregunta_id'],
+      preguntaId: json['pregunta_id']?.toString() ?? '',
       valorTexto: json['valor_texto'],
       valorNumero: json['valor_numero']?.toDouble(),
       valorFecha: json['valor_fecha'],

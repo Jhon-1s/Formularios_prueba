@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
+import '../services/auth_service.dart';  // ✅ AGREGADO
 import 'dashboard_screen.dart';
-import '../utils/validators.dart';
-
-
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
