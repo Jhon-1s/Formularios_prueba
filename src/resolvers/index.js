@@ -4,14 +4,12 @@ const jwt = require('jsonwebtoken');
 
 const SECRET_KEY = process.env.JWT_SECRET || 'clave_secreta_por_defecto';
 
-// Helper de autorización
 const requerirAuth = (usuario) => {
   if (!usuario) {
     throw new Error('No autorizado: Token inválido o ausente.');
   }
 };
 
-// Helper para obtener el texto real de las preguntas a partir de sus IDs
 const construirMapaPreguntas = async (formularioIds) => {
   const idsUnicos = [...new Set((formularioIds || []).filter(Boolean))];
   if (idsUnicos.length === 0) return {};
@@ -44,18 +42,26 @@ const resolvers = {
         'SELECT id, empresa_id, nombre, email, rol, activo FROM usuario WHERE id = ?', 
         [context.usuario.id]
       );
-      return rows[0];
+      if (rows.length === 0) return null;
+      const u = rows[0];
+      return {
+        ...u,
+        id: String(u.id),
+        empresa_id: String(u.empresa_id),
+        activo: Boolean(u.activo)
+      };
     },
 
-getEmpresas: async () => {
-  const [rows] = await pool.query('SELECT id, nombre, logo AS logo_url, activo FROM empresa');
-  return rows;
-},
+    getEmpresas: async () => {
+      const [rows] = await pool.query('SELECT id, nombre, logo AS logo_url, activo FROM empresa');
+      return rows.map(r => ({ ...r, id: String(r.id), activo: Boolean(r.activo) }));
+    },
 
-getEmpresa: async (_, { id }) => {
-  const [rows] = await pool.query('SELECT id, nombre, logo AS logo_url, activo FROM empresa WHERE id = ?', [id]);
-  return rows[0];
-},
+    getEmpresa: async (_, { id }) => {
+      const [rows] = await pool.query('SELECT id, nombre, logo AS logo_url, activo FROM empresa WHERE id = ?', [id]);
+      if (rows.length === 0) return null;
+      return { ...rows[0], id: String(rows[0].id), activo: Boolean(rows[0].activo) };
+    },
 
     getFormulariosDisponibles: async (_, __, context) => {
       requerirAuth(context.usuario);
@@ -68,7 +74,13 @@ getEmpresa: async (_, { id }) => {
            WHERE empresa_id = ? AND activo = 1 AND eliminado_en IS NULL`,
           [empresaId]
         );
-        return rows.map(f => ({ ...f, id: String(f.id) }));
+        return rows.map(f => ({
+          id: String(f.id),
+          titulo: f.titulo,
+          descripcion: f.descripcion || '',
+          version: f.version || '1.0',
+          estado: f.activo ? 'ACTIVO' : 'INACTIVO'
+        }));
       } catch (error) {
         throw new Error(`Error al obtener formularios: ${error.message}`);
       }
@@ -112,9 +124,8 @@ getEmpresa: async (_, { id }) => {
     getFormularioPorId: async (_, { id }, context) => {
       try {
         const empresaId = context?.usuario?.empresa_id;
-        console.log(`🔍 getFormularioPorId llamado con ID: ${id}`);
 
-        let sqlForm = 'SELECT id, titulo, empresa_id FROM formulario WHERE id = ? AND activo = 1 AND eliminado_en IS NULL';
+        let sqlForm = 'SELECT id, titulo, descripcion, empresa_id FROM formulario WHERE id = ? AND activo = 1 AND eliminado_en IS NULL';
         let paramsForm = [id];
 
         if (empresaId) {
@@ -130,7 +141,6 @@ getEmpresa: async (_, { id }) => {
 
         const formulario = formularioRows[0];
 
-        // Se incluye LEFT JOIN a la tabla regla para obtener reglas condicionales
         const [preguntasRows] = await pool.query(
           `SELECT 
              p.id, 
@@ -150,21 +160,25 @@ getEmpresa: async (_, { id }) => {
         );
 
         const camposMapeados = preguntasRows.map((campo) => ({
-          id: String(campo.id),
-          tipo: campo.tipo || 'TEXTO',
-          etiqueta: campo.etiqueta || '',
-          orden: Number(campo.orden) || 1,
-          requerido: Boolean(campo.requerido),
-          opciones: campo.opciones ? (typeof campo.opciones === 'string' ? campo.opciones : JSON.stringify(campo.opciones)) : null,
-          dependeDeCampoId: campo.dependeDeCampoId ? String(campo.dependeDeCampoId) : null,
-          mostrarSiValorIgualA: campo.mostrarSiValorIgualA || null,
-        }));
+  id: String(campo.id),
+  tipo: campo.tipo || 'TEXTO',
+  etiqueta: campo.etiqueta || '',
+  orden: Number(campo.orden) || 1,
+  requerido: Boolean(campo.requerido),
+  opciones: campo.opciones ? (typeof campo.opciones === 'string' ? campo.opciones : JSON.stringify(campo.opciones)) : null,
+  placeholder: campo.placeholder || '',
+  ayuda: campo.ayuda || '',
+  config: campo.opciones ? (typeof campo.opciones === 'string' ? campo.opciones : JSON.stringify(campo.opciones)) : '{}',
+  dependeDeCampoId: campo.dependeDeCampoId ? String(campo.dependeDeCampoId) : null,
+  mostrarSiValorIgualA: campo.mostrarSiValorIgualA || null,
+}));
 
         return {
           id: String(formulario.id),
           titulo: formulario.titulo,
           empresaId: String(formulario.empresa_id || empresaId || '1'),
           campos: camposMapeados,
+          descripcion: formulario.descripcion || ''
         };
       } catch (error) {
         console.error('❌ Error en getFormularioPorId:', error.message);
@@ -172,80 +186,77 @@ getEmpresa: async (_, { id }) => {
       }
     },
 
-    // Obtiene el detalle de una inspección
     getDetalleRespuesta: async (_, { id }, context) => {
-  requerirAuth(context.usuario);
+      requerirAuth(context.usuario);
 
-  try {
-    const [rows] = await pool.query(
-      `SELECT 
-         r.id,
-         r.formulario_id AS formularioId,
-         f.titulo AS tituloFormulario,
-         r.usuario_id AS usuarioId,
-         u.nombre AS nombreUsuario,
-         u.email AS usuarioEmail,
-         r.creado_en AS fechaCreado,
-         r.latitud,
-         r.longitud,
-         r.datos AS respuestas
-       FROM respuesta r
-       JOIN formulario f ON r.formulario_id = f.id
-       JOIN usuario u ON r.usuario_id = u.id
-       WHERE r.id = ?`,
-      [id]
-    );
+      try {
+        const [rows] = await pool.query(
+          `SELECT 
+             r.id,
+             r.formulario_id AS formularioId,
+             f.titulo AS tituloFormulario,
+             r.usuario_id AS usuarioId,
+             u.nombre AS nombreUsuario,
+             u.email AS usuarioEmail,
+             r.creado_en AS fechaCreado,
+             r.latitud,
+             r.longitud,
+             r.datos AS respuestas
+           FROM respuesta r
+           JOIN formulario f ON r.formulario_id = f.id
+           JOIN usuario u ON r.usuario_id = u.id
+           WHERE r.id = ?`,
+          [id]
+        );
 
-    if (rows.length === 0) {
-      throw new Error('La inspección solicitada no existe.');
-    }
+        if (rows.length === 0) {
+          throw new Error('La inspección solicitada no existe.');
+        }
 
-    const row = rows[0];
-    const mapaPreguntasGlobal = await construirMapaPreguntas([row.formularioId]);
-    const mapaForm = mapaPreguntasGlobal[String(row.formularioId)] || {};
+        const row = rows[0];
+        const mapaPreguntasGlobal = await construirMapaPreguntas([row.formularioId]);
+        const mapaForm = mapaPreguntasGlobal[String(row.formularioId)] || {};
 
-    // Decodificar el JSON de la columna datos
-    let rawDatos = typeof row.respuestas === 'string' ? JSON.parse(row.respuestas) : (row.respuestas || {});
-    let listaRespuestas = Array.isArray(rawDatos) 
-      ? rawDatos 
-      : (rawDatos.respuestas || rawDatos.datos || []);
+        let rawDatos = typeof row.respuestas === 'string' ? JSON.parse(row.respuestas) : (row.respuestas || {});
+        let listaRespuestas = Array.isArray(rawDatos) 
+          ? rawDatos 
+          : (rawDatos.respuestas || rawDatos.datos || []);
 
-    // Mapeo flexible para tolerar cualquier formato enviado por el móvil
-    const respuestasEnriquecidas = listaRespuestas.map(item => {
-      const cId = String(
-        item.campoId || item.campo_id || item.preguntaId || item.pregunta_id || item.id || ''
-      );
-      
-      const valorExtraido = item.valor !== undefined 
-        ? item.valor 
-        : (item.respuesta !== undefined ? item.respuesta : (item.texto || ''));
+        const respuestasEnriquecidas = listaRespuestas.map(item => {
+          const cId = String(
+            item.campoId || item.campo_id || item.preguntaId || item.pregunta_id || item.id || ''
+          );
+          
+          const valorExtraido = item.valor !== undefined 
+            ? item.valor 
+            : (item.respuesta !== undefined ? item.respuesta : (item.texto || ''));
 
-      return {
-        campoId: cId,
-        pregunta: item.pregunta || item.etiqueta || mapaForm[cId] || `Pregunta (${cId.substring(0, 8)})`,
-        valor: typeof valorExtraido === 'object' ? JSON.stringify(valorExtraido) : String(valorExtraido)
-      };
-    });
+          return {
+            campoId: cId,
+            pregunta: item.pregunta || item.etiqueta || mapaForm[cId] || `Pregunta (${cId.substring(0, 8)})`,
+            valor: typeof valorExtraido === 'object' ? JSON.stringify(valorExtraido) : String(valorExtraido)
+          };
+        });
 
-    const fechaIso = row.fechaCreado ? new Date(row.fechaCreado).toISOString() : null;
+        const fechaIso = row.fechaCreado ? new Date(row.fechaCreado).toISOString() : null;
 
-    return {
-      id: String(row.id),
-      formularioId: String(row.formularioId),
-      tituloFormulario: row.tituloFormulario,
-      usuarioId: String(row.usuarioId),
-      nombreUsuario: row.nombreUsuario,
-      usuarioEmail: row.usuarioEmail || '',
-      fechaCreado: fechaIso,
-      latitud: row.latitud ? parseFloat(row.latitud) : null,
-      longitud: row.longitud ? parseFloat(row.longitud) : null,
-      respuestas: respuestasEnriquecidas
-    };
-  } catch (error) {
-    console.error('❌ Error en getDetalleRespuesta:', error.message);
-    throw new Error(`Error al obtener detalle de la inspección: ${error.message}`);
-  }
-},
+        return {
+          id: String(row.id),
+          formularioId: String(row.formularioId),
+          tituloFormulario: row.tituloFormulario,
+          usuarioId: String(row.usuarioId),
+          nombreUsuario: row.nombreUsuario,
+          usuarioEmail: row.usuarioEmail || '',
+          fechaCreado: fechaIso,
+          latitud: row.latitud ? parseFloat(row.latitud) : null,
+          longitud: row.longitud ? parseFloat(row.longitud) : null,
+          respuestas: respuestasEnriquecidas
+        };
+      } catch (error) {
+        console.error('❌ Error en getDetalleRespuesta:', error.message);
+        throw new Error(`Error al obtener detalle de la inspección: ${error.message}`);
+      }
+    },
 
     getInspeccionesPorEmpresa: async (_, __, context) => {
       requerirAuth(context.usuario);
@@ -374,7 +385,9 @@ getEmpresa: async (_, { id }) => {
         return {
           activos: Number(resultado.activos) || 0,
           inactivos: Number(resultado.inactivos) || 0,
-          total: Number(resultado.total) || 0
+          total: Number(resultado.total) || 0,
+          pendientes: 0,
+          finalizados: Number(resultado.total) || 0
         };
       } catch (error) {
         throw new Error(`Error al obtener resumen de estatus: ${error.message}`);
@@ -454,6 +467,28 @@ getEmpresa: async (_, { id }) => {
         console.error('❌ Error en getHistorialRespuestas:', error.message);
         throw new Error(`Error al obtener el historial: ${error.message}`);
       }
+    },
+
+    getReglasFormulario: async (_, { formulario_id }) => {
+      try {
+        const [rows] = await pool.query(
+          `SELECT r.id, r.condicion, r.valor, r.accion
+           FROM regla r
+           INNER JOIN pregunta p ON r.pregunta_destino_id = p.id
+           INNER JOIN seccion s ON p.seccion_id = s.id
+           WHERE s.formulario_id = ?`,
+          [formulario_id]
+        );
+        return rows.map(r => ({
+          id: String(r.id),
+          preguntaOrigenIndex: 0,
+          condicion: r.condicion,
+          valor: r.valor,
+          accion: r.accion
+        }));
+      } catch (error) {
+        return [];
+      }
     }
   },
 
@@ -466,14 +501,14 @@ getEmpresa: async (_, { id }) => {
       if (rows.length === 0) throw new Error('Usuario no registrado o inactivo.');
 
       const usuario = rows[0];
-      const contraseñaValida = await bcrypt.compare(password, usuario.password);
+      const contraseñaValida = await bcrypt.compare(password, usuario.password_hash || usuario.password);
       
       if (!contraseñaValida) throw new Error('Contraseña incorrecta.');
 
       const token = jwt.sign(
         { id: usuario.id, rol: usuario.rol, empresa_id: usuario.empresa_id, email: usuario.email },
         SECRET_KEY,
-        { expiresIn: '8h' }
+        { expiresIn: '30d' }
       );
 
       return { 
@@ -489,124 +524,172 @@ getEmpresa: async (_, { id }) => {
       };
     },
 
+    registrarUsuario: async (_, { email, password, nombre, empresaId, rol }) => {
+      try {
+        const [existing] = await pool.query('SELECT id FROM usuario WHERE email = ?', [email]);
+        if (existing.length > 0) {
+          throw new Error('El correo ya está registrado');
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // 1. Generar UUID directamente en MySQL
+        const [uuidResult] = await pool.query('SELECT UUID() AS uuid');
+        const nuevoId = uuidResult[0].uuid;
+
+        // 2. Insertar enviando el nuevo UUID
+        await pool.query(
+          `INSERT INTO usuario 
+           (id, empresa_id, nombre, email, password, rol) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [nuevoId, empresaId || 1, nombre, email, hashedPassword, rol || 'encuestador']
+        );
+
+        // 3. Consultar el usuario creado mediante su UUID
+        const [rows] = await pool.query(
+          'SELECT id, empresa_id, nombre, email, rol, activo FROM usuario WHERE id = ?',
+          [nuevoId]
+        );
+
+        const usuario = rows[0];
+
+        const token = jwt.sign(
+          { id: usuario.id, rol: usuario.rol, empresa_id: usuario.empresa_id },
+          SECRET_KEY,
+          { expiresIn: '30d' }
+        );
+
+        return {
+          token,
+          usuario: {
+            id: String(usuario.id),
+            empresa_id: String(usuario.empresa_id),
+            nombre: usuario.nombre,
+            email: usuario.email,
+            rol: usuario.rol,
+            activo: usuario.activo !== undefined ? Boolean(usuario.activo) : true
+          }
+        };
+      } catch (error) {
+        console.error('❌ Error registrando usuario:', error);
+        throw new Error(error.message);
+      }
+    },
+
     crearEmpresa: async (_, { nombre, logo_url }) => {
-  const [uuidResult] = await pool.query('SELECT UUID() AS uuid');
-  const nuevoId = uuidResult[0].uuid;
+      const [uuidResult] = await pool.query('SELECT UUID() AS uuid');
+      const nuevoId = uuidResult[0].uuid;
 
-  await pool.query(
-    'INSERT INTO empresa (id, nombre, logo) VALUES (?, ?, ?)',
-    [nuevoId, nombre, logo_url]
-  );
+      await pool.query(
+        'INSERT INTO empresa (id, nombre, logo) VALUES (?, ?, ?)',
+        [nuevoId, nombre, logo_url]
+      );
 
-  const [rows] = await pool.query(
-    'SELECT id, nombre, logo AS logo_url, activo FROM empresa WHERE id = ?',
-    [nuevoId]
-  );
-  return { ...rows[0], id: String(rows[0].id) };
-},
+      const [rows] = await pool.query(
+        'SELECT id, nombre, logo AS logo_url, activo FROM empresa WHERE id = ?',
+        [nuevoId]
+      );
+      return { ...rows[0], id: String(rows[0].id), activo: Boolean(rows[0].activo) };
+    },
 
     crearFormularioConPreguntas: async (_, { titulo, descripcion, empresaId, preguntas }, context) => {
-  requerirAuth(context.usuario);
+      requerirAuth(context.usuario);
 
-  const targetEmpresaId = empresaId || context.usuario.empresa_id;
-  if (!targetEmpresaId) {
-    throw new Error('No se especificó la empresa a la que pertenece el formulario.');
-  }
-
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-
-    const [uuidResultForm] = await connection.query('SELECT UUID() AS uuid');
-    const formularioId = uuidResultForm[0].uuid;
-
-    await connection.query(
-      `INSERT INTO formulario (id, empresa_id, titulo, descripcion, version, activo) 
-       VALUES (?, ?, ?, ?, '1.0', 1)`,
-      [formularioId, targetEmpresaId, titulo, descripcion || '']
-    );
-
-    const [uuidResultSeccion] = await connection.query('SELECT UUID() AS uuid');
-    const seccionId = uuidResultSeccion[0].uuid;
-
-    await connection.query(
-      `INSERT INTO seccion (id, formulario_id, titulo, orden) 
-       VALUES (?, ?, 'Sección General', 1)`,
-      [seccionId, formularioId]
-    );
-
-    // Mapa para traducir: [ID Temporal Frontend] => [UUID Real MySQL]
-    const mapaIds = {};
-
-    // 1. Inserción de preguntas en MySQL y mapeo de IDs
-    for (const preg of preguntas) {
-      const [uuidResultPreg] = await connection.query('SELECT UUID() AS uuid');
-      const realUuid = uuidResultPreg[0].uuid;
-
-      // Guardamos la equivalencia del ID si viene del frontend
-      if (preg.id) {
-        mapaIds[String(preg.id)] = realUuid;
+      const targetEmpresaId = empresaId || context.usuario.empresa_id;
+      if (!targetEmpresaId) {
+        throw new Error('No se especificó la empresa a la que pertenece el formulario.');
       }
 
-      // Si depende de otra pregunta, arranca oculta
-      const esVisible = preg.dependeDeCampoId ? 0 : 1;
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
 
-      await connection.query(
-        `INSERT INTO pregunta (id, seccion_id, tipo, texto, orden, requerido, visible, opciones) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          realUuid,
-          seccionId,
-          preg.tipo,
-          preg.etiqueta,
-          preg.orden,
-          preg.requerido ? 1 : 0,
-          esVisible,
-          preg.opciones || null
-        ]
-      );
-    }
+        const [uuidResultForm] = await connection.query('SELECT UUID() AS uuid');
+        const formularioId = uuidResultForm[0].uuid;
 
-    // 2. Inserción de Reglas usando los UUIDs traducidos
-    for (const preg of preguntas) {
-      if (preg.dependeDeCampoId && preg.mostrarSiValorIgualA) {
-        // Traducimos los IDs temporales a los UUIDs reales recién insertados
-        const origenRealUuid = mapaIds[String(preg.dependeDeCampoId)];
-        const destinoRealUuid = mapaIds[String(preg.id)];
+        await connection.query(
+          `INSERT INTO formulario (id, empresa_id, titulo, descripcion, version, activo) 
+           VALUES (?, ?, ?, ?, '1.0', 1)`,
+          [formularioId, targetEmpresaId, titulo, descripcion || '']
+        );
 
-        if (origenRealUuid && destinoRealUuid) {
-          const [uuidResultRegla] = await connection.query('SELECT UUID() AS uuid');
-          const reglaId = uuidResultRegla[0].uuid;
+        const [uuidResultSeccion] = await connection.query('SELECT UUID() AS uuid');
+        const seccionId = uuidResultSeccion[0].uuid;
+
+        await connection.query(
+          `INSERT INTO seccion (id, formulario_id, titulo, orden) 
+           VALUES (?, ?, 'Sección General', 1)`,
+          [seccionId, formularioId]
+        );
+
+        const mapaIds = {};
+
+        for (const preg of preguntas) {
+          const [uuidResultPreg] = await connection.query('SELECT UUID() AS uuid');
+          const realUuid = uuidResultPreg[0].uuid;
+
+          if (preg.id) {
+            mapaIds[String(preg.id)] = realUuid;
+          }
+
+          const esVisible = preg.dependeDeCampoId ? 0 : 1;
 
           await connection.query(
-            `INSERT INTO regla (id, pregunta_origen_id, pregunta_destino_id, condicion, valor, accion) 
-             VALUES (?, ?, ?, 'IGUAL_A', ?, 'MOSTRAR')`,
+            `INSERT INTO pregunta (id, seccion_id, tipo, texto, orden, requerido, visible, opciones) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-              reglaId,
-              origenRealUuid,
-              destinoRealUuid,
-              preg.mostrarSiValorIgualA
+              realUuid,
+              seccionId,
+              preg.tipo,
+              preg.etiqueta,
+              preg.orden,
+              preg.requerido ? 1 : 0,
+              esVisible,
+              preg.opciones || null
             ]
           );
         }
+
+        for (const preg of preguntas) {
+          if (preg.dependeDeCampoId && preg.mostrarSiValorIgualA) {
+            const origenRealUuid = mapaIds[String(preg.dependeDeCampoId)];
+            const destinoRealUuid = mapaIds[String(preg.id)];
+
+            if (origenRealUuid && destinoRealUuid) {
+              const [uuidResultRegla] = await connection.query('SELECT UUID() AS uuid');
+              const reglaId = uuidResultRegla[0].uuid;
+
+              await connection.query(
+                `INSERT INTO regla (id, pregunta_origen_id, pregunta_destino_id, condicion, valor, accion) 
+                 VALUES (?, ?, ?, 'IGUAL_A', ?, 'MOSTRAR')`,
+                [
+                  reglaId,
+                  origenRealUuid,
+                  destinoRealUuid,
+                  preg.mostrarSiValorIgualA
+                ]
+              );
+            }
+          }
+        }
+
+        await connection.commit();
+
+        return {
+          id: String(formularioId),
+          titulo,
+          empresaId: String(targetEmpresaId),
+          campos: []
+        };
+      } catch (error) {
+        await connection.rollback();
+        console.error('❌ Error al crear el formulario:', error.message);
+        throw new Error(`Error en el servidor al guardar el formulario: ${error.message}`);
+      } finally {
+        connection.release();
       }
-    }
-
-    await connection.commit();
-
-    return {
-      id: String(formularioId),
-      titulo,
-      empresaId: String(targetEmpresaId),
-    };
-  } catch (error) {
-    await connection.rollback();
-    console.error('❌ Error al crear el formulario:', error.message);
-    throw new Error(`Error en el servidor al guardar el formulario: ${error.message}`);
-  } finally {
-    connection.release();
-  }
-},
+    },
 
     cambiarEstadoFormulario: async (_, { id, activo }, context) => {
       requerirAuth(context.usuario);

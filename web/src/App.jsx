@@ -4,6 +4,8 @@ import RegistroEmpresa from './components/RegistroEmpresa';
 import FormulariosList from './components/FormulariosList';
 import FormBuilder from './components/FormBuilder';
 import RespuestasList from './components/RespuestasList';
+import LlenarFormulario from './components/LlenarFormulario'; // <-- Importado
+import EstadoSincronizacion from './components/EstadoSincronizacion'; // <-- Importado
 import './App.css';
 
 function App() {
@@ -36,6 +38,9 @@ function App() {
         </button>
       </header>
 
+      {/* Estado de red y registros pendientes por subir */}
+      <EstadoSincronizacion />
+
       <nav style={{ display: 'flex', gap: '10px', marginBottom: '2rem', borderBottom: '2px solid #eee', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
         <button
           onClick={() => setVistaActiva('lista')}
@@ -51,6 +56,23 @@ function App() {
         >
           📋 Mis Formularios
         </button>
+
+        {/* Nueva pestaña para capturar evidencia e inspecciones */}
+        <button
+          onClick={() => setVistaActiva('llenar')}
+          style={{
+            padding: '0.5rem 1rem',
+            background: vistaActiva === 'llenar' ? '#007bff' : '#e9ecef',
+            color: vistaActiva === 'llenar' ? '#fff' : '#333',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+        >
+          📝 Llenar Inspección
+        </button>
+
         <button
           onClick={() => setVistaActiva('crear')}
           style={{
@@ -97,6 +119,7 @@ function App() {
 
       <main>
         {vistaActiva === 'lista' && <FormulariosList />}
+        {vistaActiva === 'llenar' && <LlenarFormulario />}
         {vistaActiva === 'crear' && <FormBuilder onGuardarExitoso={() => setVistaActiva('lista')} />}
         {vistaActiva === 'respuestas' && <RespuestasList />}
         {vistaActiva === 'empresa' && <RegistroEmpresa />}
