@@ -16,11 +16,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
+  int _respuestasPendientes = 0;
 
   @override
   void initState() {
     super.initState();
     _cargarUsuario();
+    _sincronizarRespuestasPendientes();
+    _contarRespuestasPendientes();
   }
 
   Future<void> _cargarUsuario() async {
@@ -33,6 +36,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (e) {
       setState(() => _isLoading = false);
     }
+  }
+
+  // ============================================================
+  // MODO OFFLINE: SINCRONIZAR RESPUESTAS PENDIENTES
+  // ============================================================
+  Future<void> _sincronizarRespuestasPendientes() async {
+    try {
+      final hasInternet = await AuthService.hasInternet();
+      if (hasInternet) {
+        final sincronizadas = await AuthService.sincronizarRespuestasPendientes();
+        if (sincronizadas > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✅ $sincronizadas respuestas sincronizadas'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          // Recargar estadísticas después de sincronizar
+          _contarRespuestasPendientes();
+        }
+      }
+    } catch (e) {
+      print('❌ Error sincronizando: $e');
+    }
+  }
+
+  // ============================================================
+  // MODO OFFLINE: CONTAR RESPUESTAS PENDIENTES
+  // ============================================================
+  Future<void> _contarRespuestasPendientes() async {
+    final pendientes = await AuthService.contarRespuestasPendientes();
+    setState(() {
+      _respuestasPendientes = pendientes;
+    });
   }
 
   Future<void> _logout() async {
@@ -72,6 +110,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // ✅ Botón de sincronización manual
+          IconButton(
+            icon: const Icon(Icons.sync),
+            onPressed: _sincronizarRespuestasPendientes,
+            tooltip: 'Sincronizar',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _logout,
@@ -98,7 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 // ============================================================
-// HOME CONTENT - VERSIÓN SIMPLIFICADA Y CORREGIDA
+// HOME CONTENT - CON INDICADOR DE RESPUESTAS PENDIENTES
 // ============================================================
 class HomeContent extends StatefulWidget {
   const HomeContent({super.key});
@@ -111,6 +155,7 @@ class _HomeContentState extends State<HomeContent> {
   Map<String, dynamic>? _estadisticas;
   bool _cargando = true;
   Map<String, dynamic>? _user;
+  int _pendientes = 0;
 
   @override
   void initState() {
@@ -121,6 +166,7 @@ class _HomeContentState extends State<HomeContent> {
   Future<void> _cargarDatos() async {
     _user = await AuthService.getUser();
     await _cargarEstadisticas();
+    await _cargarPendientes();
   }
 
   Future<void> _cargarEstadisticas() async {
@@ -157,6 +203,11 @@ class _HomeContentState extends State<HomeContent> {
     }
   }
 
+  Future<void> _cargarPendientes() async {
+    _pendientes = await AuthService.contarRespuestasPendientes();
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = _user;
@@ -166,6 +217,56 @@ class _HomeContentState extends State<HomeContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ✅ INDICADOR DE RESPUESTAS PENDIENTES
+          if (_pendientes > 0)
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.cloud_off, color: Colors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Tienes $_pendientes formulario(s) pendiente(s) de sincronizar',
+                      style: TextStyle(
+                        color: Colors.orange.shade800,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.sync, color: Colors.orange),
+                    onPressed: () async {
+                      final sincronizadas = await AuthService.sincronizarRespuestasPendientes();
+                      if (sincronizadas > 0 && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('✅ $sincronizadas respuestas sincronizadas'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                        await _cargarPendientes();
+                        await _cargarEstadisticas();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✅ No hay respuestas pendientes'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+
           // Perfil del usuario
           Card(
             elevation: 4,
@@ -198,6 +299,35 @@ class _HomeContentState extends State<HomeContent> {
                   Chip(
                     label: Text(user?['rol'] ?? 'usuario'),
                     backgroundColor: const Color(0xFF3498db).withOpacity(0.2),
+                  ),
+                  // ✅ Indicador de estado de conexión
+                  const SizedBox(height: 8),
+                  FutureBuilder<bool>(
+                    future: AuthService.hasInternet(),
+                    builder: (context, snapshot) {
+                      final hasInternet = snapshot.data ?? false;
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: hasInternet ? Colors.green : Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            hasInternet ? '🟢 Conectado' : '🔴 Sin conexión',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: hasInternet ? Colors.green : Colors.red,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

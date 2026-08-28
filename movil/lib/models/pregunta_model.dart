@@ -34,6 +34,8 @@ class Pregunta {
     print('🔍 json: $json');
     
     List<String>? opcionesList;
+    
+    // ✅ Buscar opciones en diferentes lugares
     if (json['config'] != null && json['config']['opciones'] != null) {
       final opciones = json['config']['opciones'];
       if (opciones is String) {
@@ -47,16 +49,21 @@ class Pregunta {
         opcionesList = opciones.map((e) => e.toString()).toList();
       }
     }
+    
+    // ✅ Si no hay opciones en config, buscar directamente
+    if (opcionesList == null && json['opciones'] != null) {
+      if (json['opciones'] is List) {
+        opcionesList = (json['opciones'] as List).map((e) => e.toString()).toList();
+      }
+    }
 
     return Pregunta(
       id: json['id']?.toString() ?? '',
-      // ✅ Ahora soporta 'tipo' (backend) y 'tipo_campo'
       tipoCampo: json['tipo'] ?? json['tipo_campo'] ?? 'texto',
       etiqueta: json['etiqueta'] ?? '',
-      ayuda: json['ayuda'],
-      placeholder: json['placeholder'],
+      ayuda: json['ayuda'] ?? json['help'] ?? '',
+      placeholder: json['placeholder'] ?? json['hint'] ?? '',
       orden: json['orden'] ?? 0,
-      // ✅ Ahora soporta 'requerido' (backend) y 'obligatorio'
       obligatorio: json['requerido'] ?? json['obligatorio'] ?? false,
       visible: json['visible'] ?? true,
       editable: json['editable'] ?? true,
@@ -70,9 +77,9 @@ class Pregunta {
     return opciones ?? [];
   }
 
-  int? get maxLength => config?['maxlength'];
-  int? get minLength => config?['minlength'];
-  int? get maxFotos => config?['max_fotos'];
-  double? get calidad => config?['calidad'];
-  String? get formato => config?['formato'];
+  int? get maxLength => config?['maxlength'] ?? config?['maxLength'];
+  int? get minLength => config?['minlength'] ?? config?['minLength'];
+  int? get maxFotos => config?['max_fotos'] ?? config?['maxFotos'];
+  double? get calidad => config?['calidad'] ?? config?['quality'];
+  String? get formato => config?['formato'] ?? config?['format'];
 }

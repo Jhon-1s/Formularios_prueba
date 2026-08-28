@@ -28,68 +28,67 @@ class _HistorialScreenState extends State<HistorialScreen> {
   // ============================================================
   // CARGAR HISTORIAL (VERSIÓN SIMPLIFICADA)
   // ============================================================
-  Future<void> _cargarHistorial() async {
-    setState(() => _isLoading = true);
+ Future<void> _cargarHistorial() async {
+  setState(() => _isLoading = true);
+  
+  try {
+    // 1. Obtener lista de respuestas
+    final data = await AuthService.getHistorialRespuestas();
+    print('🔍 Historial: ${data.length} registros');
     
-    try {
-      // ✅ Obtener todas las respuestas
-      final data = await AuthService.getHistorialRespuestas();
-      print('🔍 Datos historial: ${data.length} registros');
-      
-      // ✅ Para cada respuesta, obtener sus detalles
-      List<Respuesta> respuestasCompletas = [];
-      
-      for (var item in data) {
-        try {
-          final respuestaId = item['id']?.toString() ?? '';
-          print('🔍 Cargando detalles para respuesta: $respuestaId');
-          
-          // ✅ Obtener detalles de la respuesta
-          final detallesData = await AuthService.getDetalleRespuesta(respuestaId);
-          print('🔍 Detalles recibidos: ${detallesData.keys}');
-          
-          // ✅ Combinar encabezado + detalles
-          final respuestaCompleta = {
-            ...item,
-            'detalles': detallesData['detalles'] ?? [],
-          };
-          
-          final respuesta = Respuesta.fromJson(respuestaCompleta);
-          print('✅ Respuesta cargada con ${respuesta.totalDetalles} detalles');
-          respuestasCompletas.add(respuesta);
-          
-        } catch (e) {
-          print('❌ Error cargando detalle: $e');
-          // Si falla, agregar solo el encabezado
-          respuestasCompletas.add(Respuesta.fromJson(item));
-        }
-      }
-      
-      setState(() {
-        _respuestas = respuestasCompletas;
-        _aplicarFiltros();
-        _isLoading = false;
-      });
-      
-    } catch (e) {
-      print('❌ Error cargando historial: $e');
-      setState(() {
-        _respuestas = [];
-        _respuestasFiltradas = [];
-        _isLoading = false;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Error cargando historial: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+    // 2. Para cada respuesta, obtener sus detalles
+    final List<Respuesta> respuestasConDetalles = [];
+    
+    for (var item in data) {
+      try {
+        final respuestaId = item['id']?.toString() ?? '';
+        print('🔍 Cargando detalles para: $respuestaId');
+        
+        // ✅ Obtener detalles completos
+        final detallesData = await AuthService.getDetalleRespuesta(respuestaId);
+        
+        // ✅ Combinar encabezado + detalles
+        final respuestaCompleta = {
+          ...item,
+          'detalles': detallesData['detalles'] ?? [],
+          'formulario_titulo': detallesData['formulario_titulo'] ?? item['formulario_titulo'],
+        };
+        
+        final respuesta = Respuesta.fromJson(respuestaCompleta);
+        print('✅ Respuesta cargada con ${respuesta.totalDetalles} detalles');
+        respuestasConDetalles.add(respuesta);
+        
+      } catch (e) {
+        print('❌ Error con respuesta ${item['id']}: $e');
+        // Si falla, agregar solo el encabezado
+        respuestasConDetalles.add(Respuesta.fromJson(item));
       }
     }
+    
+    setState(() {
+      _respuestas = respuestasConDetalles;
+      _aplicarFiltros();
+      _isLoading = false;
+    });
+    
+  } catch (e) {
+    print('❌ Error cargando historial: $e');
+    setState(() {
+      _respuestas = [];
+      _respuestasFiltradas = [];
+      _isLoading = false;
+    });
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error cargando historial: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
-
+}
   void _aplicarFiltros() {
     setState(() {
       _respuestasFiltradas = _respuestas.where((r) {

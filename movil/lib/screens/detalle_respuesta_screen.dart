@@ -21,32 +21,34 @@ class _DetalleRespuestaScreenState extends State<DetalleRespuestaScreen> {
     _cargarDetalle();
   }
 
-  Future<void> _cargarDetalle() async {
-    setState(() => _isLoading = true);
-    try {
-      final data = await AuthService.getDetalleRespuesta(widget.respuestaId);
-      
-      print('🔍 Detalle respuesta: ${data.keys}');
-      print('🔍 Detalles: ${data['detalles']}');
-      
-      if (data.isNotEmpty) {
-        setState(() {
-          _respuesta = Respuesta.fromJson(data);
-          _isLoading = false;
-        });
-      } else {
-        setState(() => _isLoading = false);
-      }
-    } catch (e) {
-      print('❌ Error cargando detalle: $e');
+Future<void> _cargarDetalle() async {
+  setState(() => _isLoading = true);
+  try {
+    final data = await AuthService.getDetalleRespuesta(widget.respuestaId);
+    
+    print('🔍 Detalle respuesta recibido: ${data.keys}');
+    print('🔍 Detalles: ${data['detalles']}');
+    
+    if (data.isNotEmpty && data['detalles'] != null) {
+      setState(() {
+        _respuesta = Respuesta.fromJson(data);
+        _isLoading = false;
+      });
+      print('✅ Respuesta cargada con ${_respuesta?.totalDetalles ?? 0} detalles');
+    } else {
+      print('⚠️ No se encontraron detalles');
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Error al cargar: $e'), backgroundColor: Colors.red),
-        );
-      }
+    }
+  } catch (e) {
+    print('❌ Error cargando detalle: $e');
+    setState(() => _isLoading = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Error al cargar: $e'), backgroundColor: Colors.red),
+      );
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {

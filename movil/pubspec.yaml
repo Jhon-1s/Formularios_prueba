@@ -9,30 +9,44 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  
+  # ✅ UI y Core
+  cupertino_icons: ^1.0.8
   flutter_localizations:
     sdk: flutter
-
-  cupertino_icons: ^1.0.6
   
-  # Dependencias del proyecto
-  http: ^1.1.0
-  shared_preferences: ^2.2.2
-  image: ^4.0.0
-  path_provider: ^2.1.0
-  connectivity_plus: ^5.0.2
-  geolocator: ^10.1.0
-  image_picker: ^1.0.4
-  signature: ^5.4.0
+  # ✅ HTTP y Red
+  http: ^1.2.2
+  connectivity_plus: ^6.0.0
+  
+  # ✅ Almacenamiento Local
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
+  
+  # ✅ Cámara y Archivos
+  image_picker: ^1.1.2
+  permission_handler: ^11.3.1
+  image: ^4.3.0
+  
+  # ✅ Ubicación (GPS)
+  geolocator: ^13.0.1
+  
+  # ✅ Firma Digital
+  signature: ^5.5.0
+  
+  # ✅ Otros
   open_file: ^3.3.2
-  provider: ^6.0.5
-  intl: ^0.19.0   # ✅ ACTUALIZADO
-  permission_handler: ^11.0.1
+  provider: ^6.1.2
+  intl: ^0.19.0
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
-    sdk: flutter 
-  flutter_lints: ^3.0.0
+    sdk: flutter
+  flutter_lints: ^4.0.0
 
 flutter:
   uses-material-design: true
+  
+  # assets:
+  #   - assets/images/

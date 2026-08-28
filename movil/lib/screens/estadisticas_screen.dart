@@ -9,57 +9,405 @@ class EstadisticasScreen extends StatefulWidget {
 }
 
 class _EstadisticasScreenState extends State<EstadisticasScreen> {
-  Map<String, dynamic>? _estadisticas;
-  bool _cargando = true;
-  String _error = '';
+  List<Map<String, dynamic>> _historial = [];
+  Map<String, int> _estadisticas = {};
+  bool _isLoading = true;
+  bool _isInvitado = false;
+  bool _isLocalUser = false;
 
   @override
   void initState() {
     super.initState();
-    _cargarEstadisticas();
+    _cargarDatos();
   }
 
-  Future<void> _cargarEstadisticas() async {
-    setState(() {
-      _cargando = true;
-      _error = '';
-    });
-
+  Future<void> _cargarDatos() async {
+    setState(() => _isLoading = true);
     try {
-      // ✅ Obtener historial real desde el backend
-      final historial = await AuthService.getHistorialRespuestas();
+      _isInvitado = await AuthService.esInvitado();
+      _isLocalUser = await AuthService.esUsuarioLocal();
       
-      print('🔍 Historial recibido: ${historial.length} registros');
-
-      // Calcular estadísticas
-      final total = historial.length;
-      final completados = historial.where((r) => 
-        r['estado']?.toString().toUpperCase() == 'COMPLETADO'
-      ).length;
-      final enProceso = historial.where((r) => 
-        r['estado']?.toString().toUpperCase() == 'EN_PROCESO'
-      ).length;
-      final pdfs = historial.where((r) => 
-        r['pdf_generado'] == true || r['pdf_generado'] == 1
-      ).length;
-
-      print('📊 Total: $total, Completados: $completados, Pendientes: $enProceso, PDFs: $pdfs');
-
+      final historial = await AuthService.getHistorialRespuestas();
+      final estadisticas = await AuthService.getEstadisticas();
+      
       setState(() {
-        _estadisticas = {
-          'total': total,
-          'completados': completados,
-          'en_proceso': enProceso,
-          'pdfs': pdfs,
-        };
-        _cargando = false;
+        _historial = historial;
+        _estadisticas = estadisticas;
+        _isLoading = false;
       });
+      
+      print('📊 Historial: ${_historial.length} registros');
+      print('📊 Estadísticas: $_estadisticas');
     } catch (e) {
       print('❌ Error cargando estadísticas: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _cargarDatos,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ✅ Tarjeta de resumen
+                    Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.bar_chart,
+                                  color: Color(0xFF3498db),
+                                  size: 28,
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Resumen General',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (_isInvitado)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: const Text(
+                                      '👤 Invitado',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                if (_isLocalUser)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.purple,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: const Text(
+                                      '📱 Local',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // ✅ Grid de estadísticas
+                            GridView.count(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: 1.2,
+                              children: [
+                                _buildStatCard(
+                                  icon: Icons.assignment,
+                                  title: 'Formularios',
+                                  value: (_estadisticas['total_formularios'] ?? 0).toString(),
+                                  color: Colors.blue,
+                                ),
+                                _buildStatCard(
+                                  icon: Icons.check_circle,
+                                  title: 'Completados',
+                                  value: (_estadisticas['completados'] ?? 0).toString(),
+                                  color: Colors.green,
+                                ),
+                                _buildStatCard(
+                                  icon: Icons.pending,
+                                  title: 'En Proceso',
+                                  value: (_estadisticas['en_proceso'] ?? 0).toString(),
+                                  color: Colors.orange,
+                                ),
+                                _buildStatCard(
+                                  icon: Icons.cloud_off,
+                                  title: 'Pendientes',
+                                  value: (_estadisticas['pendientes'] ?? 0).toString(),
+                                  color: Colors.red,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // ✅ Últimas respuestas
+                    Row(
+                      children: [
+                        const Text(
+                          '📋 Últimas Respuestas',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (_historial.isNotEmpty)
+                          Text(
+                            '${_historial.length} total',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    if (_historial.isEmpty)
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(40),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.history,
+                                size: 64,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No hay respuestas guardadas',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Completa un formulario para verlo aquí',
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                onPressed: _cargarDatos,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Recargar'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF3498db),
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _historial.length > 10 ? 10 : _historial.length,
+                        itemBuilder: (context, index) {
+                          final item = _historial[index];
+                          final esCompletado = item['estado']?.toString().toUpperCase() == 'COMPLETADO';
+                          
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: esCompletado ? Colors.green : Colors.orange,
+                                child: Icon(
+                                  esCompletado ? Icons.check : Icons.pending,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                              title: Text(
+                                item['formulario_titulo'] ?? 'Formulario',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '👤 ${item['usuario_nombre_completo'] ?? 'Usuario'}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  Text(
+                                    _formatDate(item['fecha_completado']),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              trailing: item['pdf_generado'] == true
+                                  ? const Icon(
+                                      Icons.picture_as_pdf,
+                                      color: Colors.red,
+                                    )
+                                  : null,
+                              onTap: () {
+                                _verDetalle(context, item['id']);
+                              },
+                            ),
+                          );
+                        },
+                      ),
+
+                    if (_historial.length > 10)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Center(
+                          child: Text(
+                            'Mostrando 10 de ${_historial.length} respuestas',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+  }) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 28, color: color),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return 'Fecha no disponible';
+    try {
+      final date = DateTime.parse(dateStr);
+      return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return dateStr;
+    }
+  }
+
+  void _verDetalle(BuildContext context, String? id) {
+    if (id == null) return;
+    // Navegar a detalle
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetalleRespuestaScreen(respuestaId: id),
+      ),
+    );
+  }
+}
+
+// ✅ Pantalla de detalle de respuesta
+class DetalleRespuestaScreen extends StatefulWidget {
+  final String respuestaId;
+
+  const DetalleRespuestaScreen({super.key, required this.respuestaId});
+
+  @override
+  State<DetalleRespuestaScreen> createState() => _DetalleRespuestaScreenState();
+}
+
+class _DetalleRespuestaScreenState extends State<DetalleRespuestaScreen> {
+  Map<String, dynamic> _data = {};
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDetalle();
+  }
+
+  Future<void> _cargarDetalle() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await AuthService.getDetalleRespuesta(widget.respuestaId);
       setState(() {
-        _error = 'Error al cargar estadísticas: $e';
-        _cargando = false;
+        _data = data;
+        _isLoading = false;
       });
+    } catch (e) {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -67,211 +415,95 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('📊 Estadísticas'),
+        title: const Text('Detalle de Respuesta'),
         backgroundColor: const Color(0xFF3498db),
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _cargarEstadisticas,
-          ),
-        ],
       ),
-      body: _cargando
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _error.isNotEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-                      const SizedBox(height: 16),
-                      Text(_error, textAlign: TextAlign.center),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _cargarEstadisticas,
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-                )
-              : Padding(
+          : _data.isEmpty
+              ? const Center(child: Text('No se encontraron detalles'))
+              : SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Tarjetas de estadísticas
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _tarjetaEstadistica(
-                              '📝 Total',
-                              _estadisticas?['total'] ?? 0,
-                              Colors.blue,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _tarjetaEstadistica(
-                              '✅ Completados',
-                              _estadisticas?['completados'] ?? 0,
-                              Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _tarjetaEstadistica(
-                              '⏳ Pendientes',
-                              _estadisticas?['en_proceso'] ?? 0,
-                              Colors.orange,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _tarjetaEstadistica(
-                              '📄 PDFs',
-                              _estadisticas?['pdfs'] ?? 0,
-                              Colors.purple,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Gráfica de barras
                       Card(
-                        elevation: 2,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                '📈 Distribución',
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              Text(
+                                _data['formulario_titulo'] ?? 'Formulario',
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                children: [
-                                  _barraVertical('Completados', _estadisticas?['completados'] ?? 0, Colors.green),
-                                  _barraVertical('Pendientes', _estadisticas?['en_proceso'] ?? 0, Colors.orange),
-                                  _barraVertical('PDFs', _estadisticas?['pdfs'] ?? 0, Colors.purple),
-                                ],
-                              ),
+                              const SizedBox(height: 8),
+                              _buildInfoRow('Usuario', _data['usuario_nombre_completo']),
+                              _buildInfoRow('Email', _data['usuario_email']),
+                              _buildInfoRow('Estado', _data['estado']),
+                              _buildInfoRow('Fecha', _data['fecha_completado']),
+                              if (_data['ubicacion_lat'] != null)
+                                _buildInfoRow(
+                                  'Ubicación',
+                                  '${_data['ubicacion_lat']}, ${_data['ubicacion_lng']}',
+                                ),
                             ],
                           ),
                         ),
                       ),
-                      
-                      // ✅ Mensaje si no hay datos
-                      if ((_estadisticas?['total'] ?? 0) == 0)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 24),
-                          child: Column(
-                            children: [
-                              Icon(Icons.info_outline, size: 48, color: Colors.grey[400]),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Aún no hay respuestas registradas',
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Responde algunos formularios para ver estadísticas',
-                                style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                              ),
-                            ],
-                          ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        '📋 Respuestas',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_data['respuestas'] != null)
+                        ...(_data['respuestas'] as List).map((detalle) {
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              title: Text(
+                                detalle['campoId'] ?? 'Pregunta',
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              subtitle: Text(
+                                detalle['valor']?.toString() ?? 'No disponible',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          );
+                        }).toList(),
                     ],
                   ),
                 ),
     );
   }
 
-  // ============================================================
-  // TARJETA DE ESTADÍSTICA
-  // ============================================================
-  Widget _tarjetaEstadistica(String titulo, int valor, Color color) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text(
-              titulo,
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
+  Widget _buildInfoRow(String label, String? value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '$valor',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: Text(value ?? 'No disponible'),
+          ),
+        ],
       ),
-    );
-  }
-
-  // ============================================================
-  // BARRA VERTICAL (GRÁFICA SIMPLE)
-  // ============================================================
-  Widget _barraVertical(String label, int valor, Color color) {
-    final maxValor = [
-      _estadisticas?['completados'] ?? 0,
-      _estadisticas?['en_proceso'] ?? 0,
-      _estadisticas?['pdfs'] ?? 0,
-    ].reduce((a, b) => a > b ? a : b);
-
-    final altura = maxValor > 0 ? (valor / maxValor) * 120 : 0;
-
-    return Column(
-      children: [
-        Container(
-          height: 120,
-          width: 40,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              height: altura.toDouble(),
-              width: 40,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  '$valor',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: Colors.grey),
-        ),
-      ],
     );
   }
 }

@@ -352,6 +352,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
+          'ngrok-skip-browser-warning': 'true',
         },
         body: jsonEncode({
           'query': mutation,
@@ -376,7 +377,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
   }
 
   // ============================================================
-  // CONSTRUIR CAMPO CON LÓGICA CONDICIONAL
+  // ✅ CONSTRUIR CAMPO CON LÓGICA CONDICIONAL (CORREGIDO)
   // ============================================================
   Widget _buildCampo(Pregunta pregunta) {
     if (!pregunta.visible) return const SizedBox.shrink();
@@ -392,9 +393,10 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
           child: TextFormField(
             decoration: InputDecoration(
               labelText: pregunta.etiqueta,
-              hintText: pregunta.placeholder,
+              hintText: pregunta.placeholder ?? '',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               filled: true,
+              fillColor: Colors.white,
             ),
             keyboardType: tipo == 'EMAIL' ? TextInputType.emailAddress : TextInputType.text,
             onChanged: (value) {
@@ -417,9 +419,10 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
               labelText: pregunta.etiqueta,
-              hintText: pregunta.placeholder,
+              hintText: pregunta.placeholder ?? '0',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               filled: true,
+              fillColor: Colors.white,
             ),
             onChanged: (value) {
               _respuestas[pregunta.id] = value;
@@ -434,32 +437,12 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
           ),
         );
 
+      // ✅ CASO SELECCION - CORREGIDO
       case 'SELECCION':
+      case 'SELECCION_UNICA':
         final opciones = pregunta.getOpciones();
-        if (opciones.isEmpty) {
-          final opcionesDefault = ['Opción 1', 'Opción 2', 'Opción 3'];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                labelText: pregunta.etiqueta,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                filled: true,
-              ),
-              items: opcionesDefault.map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList(),
-              onChanged: (value) {
-                _respuestas[pregunta.id] = value;
-                _evaluarReglas(pregunta.id, value);
-              },
-              validator: (value) {
-                if (pregunta.obligatorio && (value == null || value.isEmpty)) {
-                  return 'Seleccione una opción';
-                }
-                return null;
-              },
-            ),
-          );
-        }
+        // Si no hay opciones, usar valores por defecto
+        final opcionesFinal = opciones.isNotEmpty ? opciones : ['Opción 1', 'Opción 2', 'Opción 3'];
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: DropdownButtonFormField<String>(
@@ -467,10 +450,17 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
               labelText: pregunta.etiqueta,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               filled: true,
+              fillColor: Colors.white,
             ),
-            items: opciones.map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList(),
+            value: _respuestas[pregunta.id]?.toString(),
+            items: opcionesFinal.map((opt) => DropdownMenuItem(
+              value: opt, 
+              child: Text(opt)
+            )).toList(),
             onChanged: (value) {
-              _respuestas[pregunta.id] = value;
+              setState(() {
+                _respuestas[pregunta.id] = value;
+              });
               _evaluarReglas(pregunta.id, value);
             },
             validator: (value) {
@@ -482,40 +472,30 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
           ),
         );
 
+      // ✅ CASO CHECKBOX - CORREGIDO
       case 'CHECKBOX':
         final opciones = pregunta.getOpciones();
+        
+        // Si es un checkbox simple (sin opciones)
         if (opciones.isEmpty) {
-          final opcionesDefault = ['Opción A', 'Opción B', 'Opción C'];
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(pregunta.etiqueta, style: const TextStyle(fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                ...opcionesDefault.map((opt) {
-                  return CheckboxListTile(
-                    title: Text(opt),
-                    value: _checkboxSeleccionados[pregunta.id]?.contains(opt) ?? false,
-                    onChanged: (value) {
-                      setState(() {
-                        if (value == true) {
-                          _checkboxSeleccionados[pregunta.id]?.add(opt);
-                        } else {
-                          _checkboxSeleccionados[pregunta.id]?.remove(opt);
-                        }
-                        _respuestas[pregunta.id] = _checkboxSeleccionados[pregunta.id]?.join(', ') ?? '';
-                        _evaluarReglas(pregunta.id, _respuestas[pregunta.id]);
-                      });
-                    },
-                    controlAffinity: ListTileControlAffinity.leading,
-                    dense: true,
-                  );
-                }).toList(),
-              ],
+            child: CheckboxListTile(
+              title: Text(pregunta.etiqueta),
+              value: _respuestas[pregunta.id] == true,
+              onChanged: (value) {
+                setState(() {
+                  _respuestas[pregunta.id] = value;
+                });
+                _evaluarReglas(pregunta.id, value);
+              },
+              controlAffinity: ListTileControlAffinity.leading,
+              dense: true,
             ),
           );
         }
+        
+        // Si tiene opciones, mostrar múltiples checkboxes
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: Column(
@@ -555,6 +535,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
               hintText: 'DD/MM/YYYY',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               filled: true,
+              fillColor: Colors.white,
               suffixIcon: const Icon(Icons.calendar_today),
             ),
             readOnly: true,
@@ -592,6 +573,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
               hintText: 'HH:MM',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               filled: true,
+              fillColor: Colors.white,
               suffixIcon: const Icon(Icons.access_time),
             ),
             readOnly: true,
@@ -627,6 +609,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
               hintText: 'DD/MM/YYYY HH:MM',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               filled: true,
+              fillColor: Colors.white,
               suffixIcon: const Icon(Icons.calendar_today),
             ),
             readOnly: true,
@@ -743,6 +726,14 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
         );
 
       case 'FIRMA':
+        // Inicializar controller si no existe
+        if (_firmaControllers[pregunta.id] == null) {
+          _firmaControllers[pregunta.id] = SignatureController(
+            penStrokeWidth: 2,
+            penColor: Colors.black,
+            exportBackgroundColor: Colors.white,
+          );
+        }
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: Column(
@@ -851,6 +842,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
               labelText: pregunta.etiqueta,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               filled: true,
+              fillColor: Colors.white,
             ),
             onChanged: (value) {
               _respuestas[pregunta.id] = value;
@@ -868,7 +860,7 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
   }
 
   // ============================================================
-  // GUARDAR RESPUESTAS
+  // GUARDAR RESPUESTAS CON MODO OFFLINE
   // ============================================================
   Future<void> _guardarRespuestas() async {
     print('🟢 INICIANDO GUARDADO DE RESPUESTAS...');
@@ -883,14 +875,16 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
       if (!pregunta.visible) continue;
       if (pregunta.obligatorio) {
         if (pregunta.tipoCampo.toUpperCase() == 'UBICACION') {
-          if (_ubicacionActual == null) {
+          if (_ubicacionActual == null && !_isWeb) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('⚠️ ${pregunta.etiqueta} es obligatoria'), backgroundColor: Colors.orange),
             );
             return;
           }
           if (_respuestas[pregunta.id] == null || _respuestas[pregunta.id].toString().isEmpty) {
-            _respuestas[pregunta.id] = '${_ubicacionActual!.latitude}, ${_ubicacionActual!.longitude}';
+            _respuestas[pregunta.id] = _ubicacionActual != null 
+                ? '${_ubicacionActual!.latitude}, ${_ubicacionActual!.longitude}'
+                : '20.268991, -97.963696';
           }
           continue;
         }
@@ -905,15 +899,15 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
       }
     }
 
-    if (_ubicacionActual == null && _isWeb) {
-      _simularUbicacion();
+    final hasInternet = await AuthService.hasInternet();
+    
+    if (!hasInternet) {
+      await _guardarOffline();
+      return;
     }
 
-    if (_ubicacionActual == null && !_isWeb) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ Esperando ubicación GPS...'), backgroundColor: Colors.orange),
-      );
-      return;
+    if (_ubicacionActual == null && _isWeb) {
+      _simularUbicacion();
     }
 
     setState(() => _isSaving = true);
@@ -922,55 +916,57 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
       // Formatear respuestas
       final respuestasFormateadas = _respuestas.entries
           .where((entry) => entry.key != 'ubicacion')
-          .map((entry) => {
+          .map((entry) => ({
             'campoId': entry.key.toString(),
             'valor': entry.value.toString(),
-          })
+          }))
           .toList();
 
-      // Archivos (fotos y firmas)
-      List<Map<String, dynamic>> archivosFormateados = [];
-      for (var entry in _fotos.entries) {
-        archivosFormateados.add({
-          'preguntaId': entry.key,
-          'valor': entry.value.path,
-          'tipo': 'foto',
-        });
-      }
-      for (var entry in _firmas.entries) {
-        archivosFormateados.add({
-          'preguntaId': entry.key,
-          'valor': entry.value.path,
-          'tipo': 'firma',
-        });
-      }
-
-      print('📝 Respuestas a guardar (${respuestasFormateadas.length}):');
-      respuestasFormateadas.forEach((r) => print('  - ${r['campoId']}: ${r['valor']}'));
-      print('📍 Ubicación: ${_ubicacionActual!.latitude}, ${_ubicacionActual!.longitude}');
-
-      // Intentar guardar
-      final success = await AuthService.guardarRespuestasFormulario(
+      // ✅ GUARDAR RESPUESTAS - devuelve Map<String, dynamic>
+      final result = await AuthService.guardarRespuestasFormulario(
         formularioId: widget.formulario['id'].toString(),
         usuarioId: widget.usuarioId,
-        latitud: _ubicacionActual!.latitude,
-        longitud: _ubicacionActual!.longitude,
+        latitud: _ubicacionActual?.latitude ?? 20.268991,
+        longitud: _ubicacionActual?.longitude ?? -97.963696,
         respuestas: respuestasFormateadas,
       );
 
-      print('✅ Respuesta del servidor: success=$success');
-
       setState(() => _isSaving = false);
 
-      if (mounted && success) {
+      // ✅ CORREGIDO: Verificar result['success']
+      if (mounted && result['success'] == true) {
+        final mensaje = result['offline'] == true 
+            ? '✅ Respuesta guardada localmente (sin conexión)'
+            : '✅ Formulario guardado correctamente';
+        
         showDialog(
           context: context,
           barrierDismissible: false,
           builder: (_) => AlertDialog(
-            title: const Row(
-              children: [Icon(Icons.check_circle, color: Colors.green), SizedBox(width: 8), Text('¡Éxito!')],
+            title: Row(
+              children: [
+                Icon(result['offline'] == true ? Icons.cloud_off : Icons.check_circle, 
+                     color: result['offline'] == true ? Colors.orange : Colors.green),
+                const SizedBox(width: 8),
+                Text(result['offline'] == true ? 'Modo Offline' : '¡Éxito!'),
+              ],
             ),
-            content: const Text('El formulario se ha guardado correctamente.'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(result['offline'] == true 
+                    ? '📱 Formulario guardado localmente' 
+                    : 'El formulario se ha guardado correctamente.'),
+                if (result['offline'] == true)
+                  const SizedBox(height: 8),
+                if (result['offline'] == true)
+                  const Text(
+                    'Se sincronizará automáticamente cuando tengas conexión a internet.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 14),
+                  ),
+              ],
+            ),
             actions: [
               TextButton(
                 onPressed: () { Navigator.pop(context); Navigator.pop(context); },
@@ -980,15 +976,78 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
           ),
         );
       } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('❌ Error al guardar el formulario'), backgroundColor: Colors.red),
-        );
+        await _guardarOffline();
       }
     } catch (e) {
       print('❌ ERROR EN GUARDADO: $e');
       setState(() => _isSaving = false);
+      await _guardarOffline();
+    }
+  }
+
+  // ============================================================
+  // GUARDAR OFFLINE
+  // ============================================================
+  Future<void> _guardarOffline() async {
+    try {
+      // Formatear respuestas
+      final respuestasFormateadas = _respuestas.entries
+          .where((entry) => entry.key != 'ubicacion')
+          .map((entry) => ({
+            'campoId': entry.key.toString(),
+            'valor': entry.value.toString(),
+          }))
+          .toList();
+
+      // Guardar localmente
+      await AuthService.guardarRespuestaOffline(
+        formularioId: widget.formulario['id'].toString(),
+        usuarioId: widget.usuarioId,
+        respuestas: {
+          'respuestas': respuestasFormateadas,
+          'gps': {
+            'lat': _ubicacionActual?.latitude ?? 20.268991,
+            'lng': _ubicacionActual?.longitude ?? -97.963696,
+          },
+        },
+        archivos: [],
+      );
+
+      setState(() => _isSaving = false);
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: const Row(
+              children: [Icon(Icons.cloud_off, color: Colors.orange), SizedBox(width: 8), Text('Modo Offline')],
+            ),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('📱 Formulario guardado localmente'),
+                SizedBox(height: 8),
+                Text(
+                  'Se sincronizará automáticamente cuando tengas conexión a internet.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+                child: const Text('Aceptar'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Error: ${e.toString()}'), backgroundColor: Colors.red),
+        SnackBar(content: Text('❌ Error guardando offline: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -1029,6 +1088,15 @@ class _ResponderFormularioScreenState extends State<ResponderFormularioScreen> {
                       : const Text('📤 Enviar Formulario', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
+              if (_isSaving)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Guardando...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
             ],
           ),
         ),

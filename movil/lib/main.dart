@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/login_screen.dart';
+import 'screens/registro_screen.dart';
+import 'screens/dashboard_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,16 +21,16 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF3498db)),
         useMaterial3: true,
       ),
-      // ✅ AGREGAR ESTO PARA SOPORTAR DatePicker
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('es', 'MX'), // Español
-        Locale('en', 'US'), // Inglés
+        Locale('es', 'MX'),
+        Locale('en', 'US'),
       ],
+      // ✅ Solo home, sin routes
       home: const LoginScreen(),
     );
   }
